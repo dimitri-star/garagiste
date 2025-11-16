@@ -490,7 +490,7 @@ const Landing: FC = () => {
               </p>
 
               <div className="flex flex-col items-center justify-center gap-4 sm:flex-row sm:justify-center">
-                <Link to="/dashboard">
+                <Link to="/login">
                   <ShimmerButton
                     shimmerColor="#fee2e2"
                     background="linear-gradient(135deg, rgba(248,113,113,1), rgba(220,38,38,1))"

@@ -65,6 +65,22 @@ All colors MUST be HSL.
 }
 
 @layer utilities {
+  @property --angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+  }
+
+  @keyframes rotate-light {
+    to {
+      --angle: 360deg;
+    }
+  }
+
+  .animate-rotate-light {
+    animation: rotate-light 3s linear infinite;
+  }
+
   @keyframes shimmer-slide {
     0% {
       transform: translate3d(-150%, 0, 0);

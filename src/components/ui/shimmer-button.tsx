@@ -54,7 +54,13 @@ const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonProps>(
 
         {children}
 
-        <div className={cn("absolute -z-20 [background:var(--bg)] [border-radius:var(--radius)] [inset:var(--cut)]")} />
+        <div
+          className={cn(
+            "absolute -z-20 [border-radius:var(--radius)] [inset:var(--cut)]",
+            "[background:conic-gradient(from_var(--angle),transparent,rgba(248,113,113,0.8),transparent)]",
+            "animate-rotate-light",
+          )}
+        />
       </button>
     );
   },

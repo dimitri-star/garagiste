@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { AlertCircle, Clock, FileText, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
+import { BlurFade } from "@/components/ui/blur-fade";
 
 const Dashboard = () => {
   const projects = [
@@ -53,18 +54,28 @@ const Dashboard = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold uppercase tracking-tight mb-2">
-            Vue d'ensemble de vos projets immobiliers
-          </h1>
-          <p className="text-muted-foreground">
-            Chantiers en cours, relances à effectuer, alertes : tout est centralisé ici.
-          </p>
-        </div>
+      <div className="space-y-6 text-red-50">
+        <BlurFade inView>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-300">
+              Cockpit de pilotage
+            </p>
+            <h1 className="mb-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Vue d&apos;ensemble de vos{" "}
+              <span className="bg-gradient-to-r from-red-200 via-red-400 to-red-300 bg-clip-text text-transparent">
+                projets immobiliers
+              </span>
+            </h1>
+            <p className="text-sm text-red-100/80">
+              Chantiers en cours, relances à effectuer, alertes : tout est centralisé ici, dans la continuité de votre
+              landing.
+            </p>
+          </div>
+        </BlurFade>
 
         {/* Projects in Progress */}
-        <Card>
+        <BlurFade inView delay={0.05}>
+          <Card className="border border-red-900/40 bg-black/70 text-red-50 shadow-[0_28px_80px_rgba(0,0,0,0.9)] backdrop-blur-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
@@ -107,11 +118,13 @@ const Dashboard = () => {
               </table>
             </div>
           </CardContent>
-        </Card>
+          </Card>
+        </BlurFade>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid gap-6 md:grid-cols-2">
           {/* Reminders Today */}
-          <Card>
+          <BlurFade inView delay={0.1}>
+            <Card className="border border-red-900/40 bg-black/70 text-red-50 shadow-[0_24px_70px_rgba(0,0,0,0.85)] backdrop-blur-xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
@@ -136,10 +149,12 @@ const Dashboard = () => {
                 <Button className="w-full" variant="outline">Préparer toutes les relances</Button>
               </Link>
             </CardContent>
-          </Card>
+            </Card>
+          </BlurFade>
 
           {/* Watch List */}
-          <Card>
+          <BlurFade inView delay={0.15}>
+            <Card className="border border-red-900/40 bg-black/70 text-red-50 shadow-[0_24px_70px_rgba(0,0,0,0.85)] backdrop-blur-xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5" />
@@ -154,12 +169,14 @@ const Dashboard = () => {
                 </div>
               ))}
             </CardContent>
-          </Card>
+            </Card>
+          </BlurFade>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid gap-6 md:grid-cols-2">
           {/* Daily Summary */}
-          <Card>
+          <BlurFade inView delay={0.2}>
+            <Card className="border border-red-900/40 bg-black/70 text-red-50 shadow-[0_24px_70px_rgba(0,0,0,0.85)] backdrop-blur-xl">
             <CardHeader>
               <CardTitle>Résumé de votre journée</CardTitle>
             </CardHeader>
@@ -173,10 +190,12 @@ const Dashboard = () => {
                 ))}
               </ul>
             </CardContent>
-          </Card>
+            </Card>
+          </BlurFade>
 
           {/* Recent Documents */}
-          <Card>
+          <BlurFade inView delay={0.25}>
+            <Card className="border border-red-900/40 bg-black/70 text-red-50 shadow-[0_24px_70px_rgba(0,0,0,0.85)] backdrop-blur-xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
@@ -196,7 +215,8 @@ const Dashboard = () => {
                 ))}
               </div>
             </CardContent>
-          </Card>
+            </Card>
+          </BlurFade>
         </div>
       </div>
     </DashboardLayout>
