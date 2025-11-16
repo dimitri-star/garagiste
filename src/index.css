@@ -63,3 +63,32 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  @keyframes shimmer-slide {
+    0% {
+      transform: translate3d(-150%, 0, 0);
+    }
+    100% {
+      transform: translate3d(150%, 0, 0);
+    }
+  }
+
+  .animate-shimmer-slide {
+    animation: shimmer-slide var(--speed, 3s) linear infinite;
+  }
+
+  @keyframes grid-move {
+    0% {
+      transform: translate(0, 0);
+    }
+    100% {
+      transform: translate(40px, 40px);
+    }
+  }
+
+  .animate-grid-move {
+    animation: grid-move 20s linear infinite;
+  }
+}
+
