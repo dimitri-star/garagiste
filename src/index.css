@@ -106,5 +106,58 @@ All colors MUST be HSL.
   .animate-grid-move {
     animation: grid-move 20s linear infinite;
   }
+
+  /* 3D Neomorphic Card Styles */
+  .card-3d {
+    @apply rounded-3xl transition-all duration-500;
+    box-shadow: 
+      12px 12px 24px rgba(0, 0, 0, 0.4),
+      -12px -12px 24px rgba(255, 255, 255, 0.05),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .card-3d:hover {
+    transform: scale(1.02) translateY(-4px);
+    box-shadow: 
+      20px 20px 40px rgba(0, 0, 0, 0.5),
+      -20px -20px 40px rgba(255, 255, 255, 0.08),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .card-3d-light {
+    @apply rounded-3xl transition-all duration-500;
+    box-shadow: 
+      12px 12px 24px rgba(0, 0, 0, 0.15),
+      -12px -12px 24px rgba(255, 255, 255, 0.9);
+  }
+
+  .card-3d-light:hover {
+    transform: scale(1.05) translateY(-8px);
+    box-shadow: 
+      20px 20px 40px rgba(0, 0, 0, 0.2),
+      -20px -20px 40px rgba(255, 255, 255, 1);
+  }
+
+  /* 3D Button Styles */
+  .button-3d {
+    @apply rounded-full transition-all duration-300;
+    box-shadow: 
+      6px 6px 12px rgba(0, 0, 0, 0.2),
+      -6px -6px 12px rgba(255, 255, 255, 0.05);
+  }
+
+  .button-3d:hover {
+    transform: scale(0.95);
+    box-shadow: 
+      2px 2px 4px rgba(0, 0, 0, 0.15),
+      -2px -2px 4px rgba(255, 255, 255, 0.05);
+  }
+
+  .button-3d:active {
+    transform: scale(0.9);
+    box-shadow: 
+      inset 4px 4px 8px rgba(0, 0, 0, 0.3),
+      inset -4px -4px 8px rgba(255, 255, 255, 0.05);
+  }
 }
 
