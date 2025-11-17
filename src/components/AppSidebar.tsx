@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, Users, Bell, FileText } from "lucide-react";
+import { LayoutDashboard, Building2, Users, Bell, FileText, TrendingUp } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -19,6 +19,7 @@ const items = [
   { title: "Prestataires", url: "/prestataires", icon: Users },
   { title: "Relances", url: "/relances", icon: Bell },
   { title: "Documents", url: "/documents", icon: FileText },
+  { title: "Rapport Financier", url: "/rapport-financier", icon: TrendingUp },
 ];
 
 export function AppSidebar() {
