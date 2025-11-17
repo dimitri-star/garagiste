@@ -241,7 +241,7 @@ const Prestataires = () => {
       case "À relancer":
         return <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">À relancer</Badge>;
       case "Inactif":
-        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Inactif</Badge>;
+        return <Badge className="bg-red-500/20 text-blue-600 border-blue-300/50">Inactif</Badge>;
       default:
         return <Badge variant="secondary">{statut}</Badge>;
     }
@@ -250,7 +250,7 @@ const Prestataires = () => {
   const getRelanceIcon = (type: string) => {
     switch (type) {
       case "Email":
-        return <MailIcon className="h-4 w-4 text-red-400" />;
+        return <MailIcon className="h-4 w-4 text-blue-600" />;
       case "Appel":
         return <Phone className="h-4 w-4 text-orange-400" />;
       case "SMS":
@@ -267,14 +267,14 @@ const Prestataires = () => {
       case "En attente":
         return <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 text-xs">En attente</Badge>;
       case "Pas de réponse":
-        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">Pas de réponse</Badge>;
+        return <Badge className="bg-red-500/20 text-blue-600 border-blue-300/50 text-xs">Pas de réponse</Badge>;
       default:
         return <Badge variant="secondary">{resultat}</Badge>;
     }
   };
 
   const getDocumentIcon = (type: string) => {
-    return <FileText className="h-4 w-4 text-red-400" />;
+    return <FileText className="h-4 w-4 text-blue-600" />;
   };
 
   const filteredPrestataires = prestataires.filter((prestataire) => {
@@ -297,23 +297,23 @@ const Prestataires = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 text-red-50">
+      <div className="space-y-6 text-gray-900">
         {/* Header */}
         <BlurFade inView>
           <div className="flex items-center justify-between">
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-300">Réseau d'intervenants</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Réseau d'intervenants</p>
               <h1 className="mb-2 text-3xl font-semibold tracking-tight sm:text-4xl">
                 Liste des{" "}
-                <span className="bg-gradient-to-r from-red-200 via-red-400 to-red-300 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-700 bg-clip-text text-transparent">
                   Prestataires
                 </span>
               </h1>
-              <p className="text-sm text-red-100/80">
+              <p className="text-sm text-gray-600">
                 Suivez vos intervenants, relancez-les facilement et attribuez-les à vos chantiers
               </p>
             </div>
-            <Button className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0">
+            <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0">
               <Plus className="mr-2 h-4 w-4" />
               Ajouter un prestataire
             </Button>
@@ -322,23 +322,23 @@ const Prestataires = () => {
 
         {/* Barre de recherche et filtres */}
         <BlurFade inView delay={0.05}>
-          <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+          <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group">
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-300/60" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-600/60" />
                   <Input
                     placeholder="Rechercher un prestataire (nom, métier, société)..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 bg-black/40 border-red-500/30 text-red-100 placeholder:text-red-300/50 focus:border-red-400"
+                    className="pl-10 bg-white border-blue-300/50 text-gray-700 placeholder:text-blue-600/50 focus:border-blue-500"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-black/40 border-red-500/30 text-red-100">
+                  <SelectTrigger className="w-full md:w-[180px] bg-white border-blue-300/50 text-gray-700">
                     <SelectValue placeholder="Statut" />
                   </SelectTrigger>
-                  <SelectContent className="bg-black border-red-900/40 text-red-100">
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="all">Tous les statuts</SelectItem>
                     <SelectItem value="Actif">Actif</SelectItem>
                     <SelectItem value="À relancer">À relancer</SelectItem>
@@ -346,10 +346,10 @@ const Prestataires = () => {
                   </SelectContent>
                 </Select>
                 <Select value={specialtyFilter} onValueChange={setSpecialtyFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-black/40 border-red-500/30 text-red-100">
+                  <SelectTrigger className="w-full md:w-[180px] bg-white border-blue-300/50 text-gray-700">
                     <SelectValue placeholder="Spécialité" />
                   </SelectTrigger>
-                  <SelectContent className="bg-black border-red-900/40 text-red-100">
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="all">Toutes les spécialités</SelectItem>
                     {specialites.map((specialite) => (
                       <SelectItem key={specialite} value={specialite}>
@@ -367,13 +367,13 @@ const Prestataires = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredPrestataires.map((prestataire, idx) => (
             <BlurFade key={prestataire.id} inView delay={0.1 * (idx + 1)}>
-              <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+              <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group">
                 <CardContent className="p-6">
                   {/* Header carte */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-red-500/20 flex items-center justify-center border border-red-500/30">
-                        <Briefcase className="h-6 w-6 text-red-400" />
+                      <div className="h-12 w-12 rounded-full bg-red-500/20 flex items-center justify-center border border-blue-300/50">
+                        <Briefcase className="h-6 w-6 text-blue-600" />
                       </div>
                       <div className="flex-1">
                         {getStatusBadge(prestataire.statut)}
@@ -382,30 +382,30 @@ const Prestataires = () => {
                   </div>
 
                   {/* Nom entreprise */}
-                  <h3 className="text-lg font-bold text-white mb-1">{prestataire.nomEntreprise}</h3>
-                  <p className="text-sm text-red-200/70 mb-3">{prestataire.metier}</p>
+                  <h3 className="text-lg font-bold text-gray-900 mb-1">{prestataire.nomEntreprise}</h3>
+                  <p className="text-sm text-gray-700/70 mb-3">{prestataire.metier}</p>
 
                   {/* Contact */}
                   <div className="space-y-2 mb-4">
-                    <div className="flex items-center gap-2 text-sm text-red-200/80">
-                      <Phone className="h-4 w-4 text-red-400" />
+                    <div className="flex items-center gap-2 text-sm text-gray-700/80">
+                      <Phone className="h-4 w-4 text-blue-600" />
                       <span>{prestataire.telephone}</span>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-red-200/80">
-                      <Mail className="h-4 w-4 text-red-400" />
+                    <div className="flex items-center gap-2 text-sm text-gray-700/80">
+                      <Mail className="h-4 w-4 text-blue-600" />
                       <span className="truncate">{prestataire.email}</span>
                     </div>
                   </div>
 
                   {/* Stats */}
-                  <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-red-950/20 rounded-lg border border-red-900/30">
+                  <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-red-950/20 rounded-lg border border-blue-200/50">
                     <div>
-                      <p className="text-xs text-red-300/60 mb-1">Chantiers</p>
-                      <p className="text-lg font-semibold text-white">{prestataire.nbChantiers}</p>
+                      <p className="text-xs text-blue-600/60 mb-1">Chantiers</p>
+                      <p className="text-lg font-semibold text-gray-900">{prestataire.nbChantiers}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-red-300/60 mb-1">Dernier contact</p>
-                      <p className="text-sm font-medium text-red-100">
+                      <p className="text-xs text-blue-600/60 mb-1">Dernier contact</p>
+                      <p className="text-sm font-medium text-gray-700">
                         {new Date(prestataire.dernierContact).toLocaleDateString("fr-FR", {
                           day: "numeric",
                           month: "short",
@@ -418,7 +418,7 @@ const Prestataires = () => {
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleOpenFiche(prestataire)}
-                      className="flex-1 bg-red-500/10 border-red-500/30 text-red-100 hover:bg-red-500/20"
+                      className="flex-1 bg-blue-50 border-blue-300/50 text-gray-700 hover:bg-red-500/20"
                       variant="outline"
                       size="sm"
                     >
@@ -426,14 +426,14 @@ const Prestataires = () => {
                       Voir fiche
                     </Button>
                     <Button
-                      className="bg-red-500/10 border-red-500/30 text-red-100 hover:bg-red-500/20"
+                      className="bg-blue-50 border-blue-300/50 text-gray-700 hover:bg-red-500/20"
                       variant="outline"
                       size="sm"
                     >
                       <MailIcon className="h-4 w-4" />
                     </Button>
                     <Button
-                      className="bg-black/40 border-red-500/30 text-red-100 hover:bg-red-500/10"
+                      className="bg-white border-blue-300/50 text-gray-700 hover:bg-blue-50"
                       variant="outline"
                       size="sm"
                     >
@@ -448,19 +448,19 @@ const Prestataires = () => {
 
         {filteredPrestataires.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-red-200/60">Aucun prestataire trouvé</p>
+            <p className="text-gray-700/60">Aucun prestataire trouvé</p>
           </div>
         )}
 
         {/* Dialog Fiche détaillée */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-black/95 border-red-900/40 text-red-50">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white border-blue-200/50 text-gray-900">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-white flex items-center gap-3">
-                <Briefcase className="h-6 w-6 text-red-400" />
+              <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                <Briefcase className="h-6 w-6 text-blue-600" />
                 {selectedPrestataire?.nomEntreprise}
               </DialogTitle>
-              <DialogDescription className="text-red-200/70">
+              <DialogDescription className="text-gray-700/70">
                 Fiche complète du prestataire
               </DialogDescription>
             </DialogHeader>
@@ -468,45 +468,45 @@ const Prestataires = () => {
             {selectedPrestataire && (
               <div className="space-y-6">
                 {/* Informations générales */}
-                <div className="p-4 bg-red-950/20 rounded-lg border border-red-900/30">
-                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <User className="h-5 w-5 text-red-400" />
+                <div className="p-4 bg-red-950/20 rounded-lg border border-blue-200/50">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <User className="h-5 w-5 text-blue-600" />
                     Informations générales
                   </h3>
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-red-300/60 mb-1">Nom du contact</p>
-                      <p className="text-sm font-medium text-white">{selectedPrestataire.nomContact}</p>
+                      <p className="text-xs text-blue-600/60 mb-1">Nom du contact</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedPrestataire.nomContact}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-red-300/60 mb-1">Métier</p>
-                      <p className="text-sm font-medium text-white">{selectedPrestataire.metier}</p>
+                      <p className="text-xs text-blue-600/60 mb-1">Métier</p>
+                      <p className="text-sm font-medium text-gray-900">{selectedPrestataire.metier}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-red-300/60 mb-1">Téléphone</p>
-                      <p className="text-sm font-medium text-white flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-red-400" />
+                      <p className="text-xs text-blue-600/60 mb-1">Téléphone</p>
+                      <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-blue-600" />
                         {selectedPrestataire.telephone}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-red-300/60 mb-1">Email</p>
-                      <p className="text-sm font-medium text-white flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-red-400" />
+                      <p className="text-xs text-blue-600/60 mb-1">Email</p>
+                      <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-blue-600" />
                         {selectedPrestataire.email}
                       </p>
                     </div>
                     <div className="md:col-span-2">
-                      <p className="text-xs text-red-300/60 mb-1">Adresse</p>
-                      <p className="text-sm font-medium text-white flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-red-400" />
+                      <p className="text-xs text-blue-600/60 mb-1">Adresse</p>
+                      <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-blue-600" />
                         {selectedPrestataire.adresse}
                       </p>
                     </div>
                     {selectedPrestataire.siret && (
                       <div>
-                        <p className="text-xs text-red-300/60 mb-1">SIRET</p>
-                        <p className="text-sm font-medium text-white">{selectedPrestataire.siret}</p>
+                        <p className="text-xs text-blue-600/60 mb-1">SIRET</p>
+                        <p className="text-sm font-medium text-gray-900">{selectedPrestataire.siret}</p>
                       </div>
                     )}
                   </div>
@@ -516,29 +516,29 @@ const Prestataires = () => {
                   {/* Chantiers associés */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <Building2 className="h-5 w-5 text-red-400" />
+                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-blue-600" />
                         Chantiers associés ({selectedPrestataire.chantiers.length})
                       </h3>
                     </div>
                     {selectedPrestataire.chantiers.length === 0 ? (
-                      <div className="p-6 text-center bg-red-950/10 rounded-lg border border-red-900/20 border-dashed">
-                        <Building2 className="h-8 w-8 text-red-300/30 mx-auto mb-2" />
-                        <p className="text-sm text-red-200/60">Aucun chantier associé</p>
+                      <div className="p-6 text-center bg-blue-50/50 rounded-lg border border-blue-200/50 border-dashed">
+                        <Building2 className="h-8 w-8 text-blue-600/30 mx-auto mb-2" />
+                        <p className="text-sm text-gray-700/60">Aucun chantier associé</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
                         {selectedPrestataire.chantiers.map((chantier) => (
                           <div
                             key={chantier.id}
-                            className="p-3 bg-red-950/20 rounded-lg border border-red-900/30 hover:border-red-500/50 transition-colors"
+                            className="p-3 bg-red-950/20 rounded-lg border border-blue-200/50 hover:border-red-500/50 transition-colors"
                           >
                             <div className="flex items-start justify-between mb-2">
-                              <h4 className="font-semibold text-white text-sm">{chantier.nom}</h4>
+                              <h4 className="font-semibold text-gray-900 text-sm">{chantier.nom}</h4>
                               {getStatusBadge(chantier.statut)}
                             </div>
-                            <p className="text-xs text-red-200/70 mb-1">Rôle : {chantier.role}</p>
-                            <p className="text-xs text-red-300/60">
+                            <p className="text-xs text-gray-700/70 mb-1">Rôle : {chantier.role}</p>
+                            <p className="text-xs text-blue-600/60">
                               Dernière intervention : {new Date(chantier.derniereIntervention).toLocaleDateString("fr-FR")}
                             </p>
                           </div>
@@ -550,12 +550,12 @@ const Prestataires = () => {
                   {/* Historique des relances */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <Clock className="h-5 w-5 text-red-400" />
+                      <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <Clock className="h-5 w-5 text-blue-600" />
                         Historique des relances
                       </h3>
                       <Button
-                        className="bg-red-500/20 border-red-500/30 text-red-100 hover:bg-red-500/30"
+                        className="bg-red-500/20 border-blue-300/50 text-gray-700 hover:bg-red-500/30"
                         variant="outline"
                         size="sm"
                       >
@@ -564,16 +564,16 @@ const Prestataires = () => {
                       </Button>
                     </div>
                     {selectedPrestataire.relances.length === 0 ? (
-                      <div className="p-6 text-center bg-red-950/10 rounded-lg border border-red-900/20 border-dashed">
-                        <Clock className="h-8 w-8 text-red-300/30 mx-auto mb-2" />
-                        <p className="text-sm text-red-200/60">Aucune relance enregistrée</p>
+                      <div className="p-6 text-center bg-blue-50/50 rounded-lg border border-blue-200/50 border-dashed">
+                        <Clock className="h-8 w-8 text-blue-600/30 mx-auto mb-2" />
+                        <p className="text-sm text-gray-700/60">Aucune relance enregistrée</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
                         {selectedPrestataire.relances.map((relance, idx) => (
                           <div
                             key={relance.id}
-                            className="relative pl-8 pb-4 border-l border-red-900/30 last:border-l-0 last:pb-0"
+                            className="relative pl-8 pb-4 border-l border-blue-200/50 last:border-l-0 last:pb-0"
                           >
                             <div className="absolute -left-2 top-0">
                               <div className="h-4 w-4 rounded-full bg-red-500/30 border-2 border-red-500/50" />
@@ -582,14 +582,14 @@ const Prestataires = () => {
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1">
                                   {getRelanceIcon(relance.type)}
-                                  <span className="text-sm font-medium text-white">{relance.type}</span>
-                                  <span className="text-xs text-red-300/60">
+                                  <span className="text-sm font-medium text-gray-900">{relance.type}</span>
+                                  <span className="text-xs text-blue-600/60">
                                     {new Date(relance.date).toLocaleDateString("fr-FR")}
                                   </span>
                                 </div>
                                 {getRelanceResultatBadge(relance.resultat)}
                               </div>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-300 hover:text-red-400">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-600">
                                 <MailIcon className="h-3 w-3" />
                               </Button>
                             </div>
@@ -603,8 +603,8 @@ const Prestataires = () => {
                 {/* Documents associés */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-red-400" />
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <FileText className="h-5 w-5 text-blue-600" />
                       Documents associés ({selectedPrestataire.documents.length})
                     </h3>
                     <Button
@@ -618,25 +618,25 @@ const Prestataires = () => {
                   </div>
                   {selectedPrestataire.documents.length === 0 ? (
                     <div className="p-6 text-center bg-red-950/10 rounded-lg border border-red-900/20 border-dashed">
-                      <FileText className="h-8 w-8 text-red-300/30 mx-auto mb-2" />
-                      <p className="text-sm text-red-200/60">Aucun document associé</p>
+                      <FileText className="h-8 w-8 text-blue-600/30 mx-auto mb-2" />
+                      <p className="text-sm text-gray-700/60">Aucun document associé</p>
                     </div>
                   ) : (
                     <div className="grid md:grid-cols-2 gap-3">
                       {selectedPrestataire.documents.map((doc) => (
                         <div
                           key={doc.id}
-                          className="p-3 bg-red-950/20 rounded-lg border border-red-900/30 hover:border-red-500/50 transition-colors flex items-center justify-between"
+                          className="p-3 bg-red-950/20 rounded-lg border border-blue-200/50 hover:border-red-500/50 transition-colors flex items-center justify-between"
                         >
                           <div className="flex items-center gap-3 flex-1">
                             {getDocumentIcon(doc.type)}
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-white truncate">{doc.nom}</p>
+                              <p className="text-sm font-medium text-gray-900 truncate">{doc.nom}</p>
                               <div className="flex items-center gap-2 mt-1">
                                 <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
                                   {doc.type}
                                 </Badge>
-                                <span className="text-xs text-red-300/60">
+                                <span className="text-xs text-blue-600/60">
                                   {new Date(doc.date).toLocaleDateString("fr-FR")}
                                 </span>
                               </div>
@@ -649,32 +649,32 @@ const Prestataires = () => {
                 </div>
 
                 {/* Actions rapides */}
-                <div className="p-4 bg-red-950/20 rounded-lg border border-red-900/30">
-                  <h3 className="text-lg font-semibold text-white mb-4">Actions rapides</h3>
+                <div className="p-4 bg-red-950/20 rounded-lg border border-blue-200/50">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Actions rapides</h3>
                   <div className="grid md:grid-cols-2 gap-3">
                     <Button
-                      className="w-full justify-start bg-red-500/10 border-red-500/30 text-red-100 hover:bg-red-500/20"
+                      className="w-full justify-start bg-blue-50 border-blue-300/50 text-gray-700 hover:bg-red-500/20"
                       variant="outline"
                     >
                       <MailIcon className="mr-2 h-4 w-4" />
                       Envoyer une relance
                     </Button>
                     <Button
-                      className="w-full justify-start bg-red-500/10 border-red-500/30 text-red-100 hover:bg-red-500/20"
+                      className="w-full justify-start bg-blue-50 border-blue-300/50 text-gray-700 hover:bg-red-500/20"
                       variant="outline"
                     >
                       <FileText className="mr-2 h-4 w-4" />
                       Ajouter une note
                     </Button>
                     <Button
-                      className="w-full justify-start bg-red-500/10 border-red-500/30 text-red-100 hover:bg-red-500/20"
+                      className="w-full justify-start bg-blue-50 border-blue-300/50 text-gray-700 hover:bg-red-500/20"
                       variant="outline"
                     >
                       <Upload className="mr-2 h-4 w-4" />
                       Téléverser un document
                     </Button>
                     <Button
-                      className="w-full justify-start bg-red-500/10 border-red-500/30 text-red-100 hover:bg-red-500/20"
+                      className="w-full justify-start bg-blue-50 border-blue-300/50 text-gray-700 hover:bg-red-500/20"
                       variant="outline"
                     >
                       <Archive className="mr-2 h-4 w-4" />

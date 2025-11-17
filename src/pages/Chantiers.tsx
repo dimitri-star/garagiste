@@ -194,7 +194,7 @@ const Chantiers = () => {
       case "Terminé":
         return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Terminé</Badge>;
       case "Bloqué":
-        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">Bloqué</Badge>;
+        return <Badge className="bg-red-500/20 text-blue-600 border-blue-300/50">Bloqué</Badge>;
       default:
         return <Badge variant="secondary">{statut}</Badge>;
     }
@@ -223,21 +223,21 @@ const Chantiers = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 text-red-50">
+      <div className="space-y-6 text-gray-900">
         {/* Header */}
         <BlurFade inView>
           <div className="flex items-center justify-between">
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-300">Gestion de projets</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">Gestion de projets</p>
               <h1 className="mb-2 text-3xl font-semibold tracking-tight sm:text-4xl">
                 Suivi des{" "}
-                <span className="bg-gradient-to-r from-red-200 via-red-400 to-red-300 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-700 bg-clip-text text-transparent">
                   Chantiers
                 </span>
               </h1>
-              <p className="text-sm text-red-100/80">Gérez vos projets avec visibilité, checklist et photos</p>
+              <p className="text-sm text-gray-600">Gérez vos projets avec visibilité, checklist et photos</p>
             </div>
-            <Button className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0">
+            <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0">
               <Plus className="mr-2 h-4 w-4" />
               Nouveau Chantier
             </Button>
@@ -246,23 +246,23 @@ const Chantiers = () => {
 
         {/* Barre de recherche et filtres */}
         <BlurFade inView delay={0.05}>
-            <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+            <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-300/60" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     placeholder="Rechercher un chantier..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 bg-black/40 border-red-500/30 text-red-100 placeholder:text-red-300/50 focus:border-red-400"
+                    className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
                   />
                 </div>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-black/40 border-red-500/30 text-red-100">
+                  <SelectTrigger className="w-full md:w-[180px] bg-white border-blue-300/50 text-gray-900">
                     <SelectValue placeholder="Statut" />
                   </SelectTrigger>
-                  <SelectContent className="bg-black border-red-900/40 text-red-100">
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="all">Tous les statuts</SelectItem>
                     <SelectItem value="En cours">En cours</SelectItem>
                     <SelectItem value="Terminé">Terminé</SelectItem>
@@ -270,10 +270,10 @@ const Chantiers = () => {
                   </SelectContent>
                 </Select>
                 <Select value={equipeFilter} onValueChange={setEquipeFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-black/40 border-red-500/30 text-red-100">
+                  <SelectTrigger className="w-full md:w-[180px] bg-white border-blue-300/50 text-gray-900">
                     <SelectValue placeholder="Équipe" />
                   </SelectTrigger>
-                  <SelectContent className="bg-black border-red-900/40 text-red-100">
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="all">Toutes les équipes</SelectItem>
                     {equipes.map((equipe) => (
                       <SelectItem key={equipe} value={equipe}>
@@ -291,38 +291,38 @@ const Chantiers = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filteredChantiers.map((chantier, idx) => (
             <BlurFade key={chantier.id} inView delay={0.1 * (idx + 1)}>
-              <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+              <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group">
                 <CardContent className="p-6">
                   {/* Header carte */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex-1">
                       {getStatusBadge(chantier.statut)}
-                      <p className="text-xs text-red-200/60 mt-2">{chantier.equipe}</p>
+                      <p className="text-xs text-gray-700/60 mt-2">{chantier.equipe}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-white">{chantier.budget.toLocaleString()} €</p>
-                      <p className="text-xs text-red-200/60">Budget</p>
+                      <p className="text-2xl font-bold text-gray-900">{chantier.budget.toLocaleString()} €</p>
+                      <p className="text-xs text-gray-700/60">Budget</p>
                     </div>
                   </div>
 
                   {/* Nom chantier */}
-                  <h3 className="text-lg font-bold text-white mb-2">{chantier.nom}</h3>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">{chantier.nom}</h3>
 
                   {/* Client */}
-                  <div className="flex items-center gap-2 mb-2 text-sm text-red-200/80">
-                    <Users className="h-4 w-4 text-red-400" />
+                  <div className="flex items-center gap-2 mb-2 text-sm text-gray-700/80">
+                    <Users className="h-4 w-4 text-blue-600" />
                     <span>{chantier.client}</span>
                   </div>
 
                   {/* Adresse */}
-                  <div className="flex items-start gap-2 mb-4 text-sm text-red-200/70">
-                    <MapPin className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex items-start gap-2 mb-4 text-sm text-gray-700/70">
+                    <MapPin className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                     <span className="line-clamp-2">{chantier.adresse}</span>
                   </div>
 
                   {/* Dates */}
-                  <div className="flex items-center gap-2 mb-4 text-xs text-red-200/60">
-                    <Calendar className="h-3 w-3 text-red-400" />
+                  <div className="flex items-center gap-2 mb-4 text-xs text-gray-700/60">
+                    <Calendar className="h-3 w-3 text-blue-600" />
                     <span>
                       Du {new Date(chantier.dateDebut).toLocaleDateString("fr-FR")} au{" "}
                       {new Date(chantier.dateFin).toLocaleDateString("fr-FR")}
@@ -331,9 +331,9 @@ const Chantiers = () => {
 
                   {/* Prochaine étape */}
                   {chantier.etapes.find((e) => !e.faite) && (
-                    <div className="mb-4 p-3 bg-red-950/30 rounded-lg border border-red-900/30">
-                      <p className="text-xs text-red-300/80 mb-1">Prochaine étape</p>
-                      <p className="text-sm font-medium text-red-100">
+                    <div className="mb-4 p-3 bg-red-950/30 rounded-lg border border-blue-200/50">
+                      <p className="text-xs text-blue-600/80 mb-1">Prochaine étape</p>
+                      <p className="text-sm font-medium text-gray-700">
                         {chantier.etapes.find((e) => !e.faite)?.nom} – prévu le{" "}
                         {new Date(chantier.etapes.find((e) => !e.faite)!.datePrevue).toLocaleDateString("fr-FR")}
                       </p>
@@ -343,7 +343,7 @@ const Chantiers = () => {
                   {/* Avancement */}
                   <div className="mb-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-red-200/80">
+                      <span className="text-sm text-gray-700/80">
                         {chantier.etapes.filter((e) => e.faite).length}/{chantier.etapes.length} étapes – {chantier.avancement}%
                       </span>
                     </div>
@@ -359,7 +359,7 @@ const Chantiers = () => {
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleOpenTimeline(chantier)}
-                      className="flex-1 bg-red-500/10 border-red-500/30 text-red-100 hover:bg-red-500/20"
+                      className="flex-1 bg-blue-50 border-blue-300/50 text-gray-700 hover:bg-red-500/20"
                       variant="outline"
                       size="sm"
                     >
@@ -367,7 +367,7 @@ const Chantiers = () => {
                       Voir les étapes
                     </Button>
                     <Button
-                      className="bg-black/40 border-red-500/30 text-red-100 hover:bg-red-500/10"
+                      className="bg-white border-blue-300/50 text-gray-700 hover:bg-blue-50"
                       variant="outline"
                       size="sm"
                     >
@@ -382,16 +382,16 @@ const Chantiers = () => {
 
         {filteredChantiers.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-red-200/60">Aucun chantier trouvé</p>
+            <p className="text-gray-700/60">Aucun chantier trouvé</p>
           </div>
         )}
 
         {/* Dialog Timeline */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-black/95 border-red-900/40 text-red-50">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white border-blue-200/50 text-gray-900">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-white">Timeline du chantier</DialogTitle>
-              <DialogDescription className="text-red-200/70">
+              <DialogTitle className="text-2xl font-bold text-gray-900">Timeline du chantier</DialogTitle>
+              <DialogDescription className="text-gray-700/70">
                 {selectedChantier?.nom} – {selectedChantier?.adresse}
               </DialogDescription>
             </DialogHeader>
@@ -399,22 +399,22 @@ const Chantiers = () => {
             {selectedChantier && (
               <div className="space-y-6">
                 {/* Infos clés */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-red-950/20 rounded-lg border border-red-900/30">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-red-950/20 rounded-lg border border-blue-200/50">
                   <div>
-                    <p className="text-xs text-red-300/60 mb-1">Statut</p>
+                    <p className="text-xs text-blue-600/60 mb-1">Statut</p>
                     <div>{getStatusBadge(selectedChantier.statut)}</div>
                   </div>
                   <div>
-                    <p className="text-xs text-red-300/60 mb-1">Budget</p>
-                    <p className="text-sm font-semibold text-white">{selectedChantier.budget.toLocaleString()} €</p>
+                    <p className="text-xs text-blue-600/60 mb-1">Budget</p>
+                    <p className="text-sm font-semibold text-gray-900">{selectedChantier.budget.toLocaleString()} €</p>
                   </div>
                   <div>
-                    <p className="text-xs text-red-300/60 mb-1">Équipe</p>
-                    <p className="text-sm font-semibold text-white">{selectedChantier.equipe}</p>
+                    <p className="text-xs text-blue-600/60 mb-1">Équipe</p>
+                    <p className="text-sm font-semibold text-gray-900">{selectedChantier.equipe}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-red-300/60 mb-1">Avancement</p>
-                    <p className="text-sm font-semibold text-white">
+                    <p className="text-xs text-blue-600/60 mb-1">Avancement</p>
+                    <p className="text-sm font-semibold text-gray-900">
                       {etapesFaites}/{totalEtapes} étapes – {selectedChantier.avancement}%
                     </p>
                   </div>
@@ -424,7 +424,7 @@ const Chantiers = () => {
                   {/* Checklist étapes */}
                   <div className="md:col-span-2 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-white">Étapes du chantier</h3>
+                      <h3 className="text-lg font-semibold text-gray-900">Étapes du chantier</h3>
                       <Button
                         className="bg-green-500/20 border-green-500/30 text-green-400 hover:bg-green-500/30"
                         variant="outline"
@@ -439,32 +439,32 @@ const Chantiers = () => {
                       {selectedChantier.etapes.map((etape) => (
                         <div
                           key={etape.id}
-                          className="p-4 bg-red-950/20 rounded-lg border border-red-900/30 hover:border-red-500/50 transition-colors"
+                          className="p-4 bg-red-950/20 rounded-lg border border-blue-200/50 hover:border-red-500/50 transition-colors"
                         >
                           <div className="flex items-start gap-3">
                             <div className="mt-1">
                               {etape.faite ? (
                                 <CheckCircle2 className="h-5 w-5 text-green-400" />
                               ) : (
-                                <Circle className="h-5 w-5 text-red-300/50" />
+                                <Circle className="h-5 w-5 text-blue-600/50" />
                               )}
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center justify-between mb-1">
-                                <h4 className={`font-semibold ${etape.faite ? "text-green-400 line-through" : "text-white"}`}>
+                                <h4 className={`font-semibold ${etape.faite ? "text-green-400 line-through" : "text-gray-900"}`}>
                                   {etape.nom}
                                 </h4>
                                 <div className="flex gap-2">
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-300 hover:text-red-400">
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-600">
                                     <Edit className="h-3 w-3" />
                                   </Button>
-                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-400 hover:text-red-500">
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-blue-600 hover:text-gray-9000">
                                     <Trash2 className="h-3 w-3" />
                                   </Button>
                                 </div>
                               </div>
-                              <p className="text-sm text-red-200/70 mb-2">{etape.description}</p>
-                              <p className="text-xs text-red-300/60">
+                              <p className="text-sm text-gray-700/70 mb-2">{etape.description}</p>
+                              <p className="text-xs text-blue-600/60">
                                 Date prévue : {new Date(etape.datePrevue).toLocaleDateString("fr-FR")}
                               </p>
                             </div>
@@ -477,7 +477,7 @@ const Chantiers = () => {
                   {/* Photos */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-white">Photos des étapes</h3>
+                      <h3 className="text-lg font-semibold text-gray-900">Photos des étapes</h3>
                       <Button
                         className="bg-green-500/20 border-green-500/30 text-green-400 hover:bg-green-500/30"
                         variant="outline"
@@ -490,8 +490,8 @@ const Chantiers = () => {
 
                     {selectedChantier.photos.length === 0 ? (
                       <div className="p-8 text-center bg-red-950/10 rounded-lg border border-red-900/20 border-dashed">
-                        <Camera className="h-12 w-12 text-red-300/30 mx-auto mb-3" />
-                        <p className="text-sm text-red-200/60">Aucune photo ajoutée</p>
+                        <Camera className="h-12 w-12 text-blue-600/30 mx-auto mb-3" />
+                        <p className="text-sm text-gray-700/60">Aucune photo ajoutée</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -500,17 +500,17 @@ const Chantiers = () => {
                             <img
                               src={photo.url}
                               alt={`Photo ${photo.id}`}
-                              className="w-full h-32 object-cover rounded-lg border border-red-900/30"
+                              className="w-full h-32 object-cover rounded-lg border border-blue-200/50"
                             />
                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
-                              <Button variant="ghost" size="sm" className="text-white hover:text-red-400">
+                              <Button variant="ghost" size="sm" className="text-gray-900 hover:text-blue-600">
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" className="text-white hover:text-red-500">
+                              <Button variant="ghost" size="sm" className="text-gray-900 hover:text-gray-9000">
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
-                            <p className="text-xs text-red-200/60 mt-1">
+                            <p className="text-xs text-gray-700/60 mt-1">
                               {new Date(photo.date).toLocaleDateString("fr-FR")}
                             </p>
                           </div>

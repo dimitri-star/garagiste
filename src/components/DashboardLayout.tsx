@@ -10,22 +10,22 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-gradient-to-br from-black via-black to-red-950/70 text-white">
+      <div className="flex min-h-screen w-full bg-gradient-to-br from-white via-blue-50/30 to-white text-gray-900">
         <AppSidebar />
         <div className="flex flex-1 flex-col">
-          <header className="flex h-16 items-center justify-between border-b border-red-900/40 bg-black/80 px-6 backdrop-blur-xl">
+          <header className="flex h-16 items-center justify-between border-b border-blue-200/50 bg-white/80 px-6 backdrop-blur-xl">
             <SidebarTrigger />
             <Link to="/login">
               <ShimmerButton
-                shimmerColor="#fecaca"
-                background="rgba(15,15,15,0.9)"
-                className="px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.18em]"
+                shimmerColor="#dbeafe"
+                background="linear-gradient(135deg, rgba(37,99,235,1), rgba(59,130,246,1))"
+                className="px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white"
               >
                 Déconnexion
               </ShimmerButton>
             </Link>
           </header>
-          <main className="flex-1 p-6 lg:p-8">{children}</main>
+          <main className="flex-1 p-6 lg:p-8 bg-white">{children}</main>
         </div>
       </div>
     </SidebarProvider>

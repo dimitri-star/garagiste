@@ -186,7 +186,7 @@ const Documents = () => {
     if (extension === "m4a" || extension === "mp3" || extension === "wav" || type === "Note") {
       return <Mic className="h-5 w-5 text-purple-400" />;
     }
-    return <FileText className="h-5 w-5 text-red-400" />;
+    return <FileText className="h-5 w-5 text-blue-600" />;
   };
 
   const getTypeBadge = (type: string) => {
@@ -216,7 +216,7 @@ const Documents = () => {
       case "Signée":
         return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Signé</Badge>;
       case "À valider":
-        return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">À valider</Badge>;
+        return <Badge className="bg-red-500/20 text-blue-600 border-blue-300/50">À valider</Badge>;
       case "Envoyé":
         return <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">Envoyé</Badge>;
       case "Brouillon":
@@ -248,26 +248,26 @@ const Documents = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 text-red-50">
+      <div className="space-y-6 text-gray-900">
         {/* Header */}
         <BlurFade inView>
           <div className="flex items-center justify-between">
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-red-300">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">
                 Gestion documentaire
               </p>
               <h1 className="mb-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-                <span className="bg-gradient-to-r from-red-200 via-red-400 to-red-300 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-700 bg-clip-text text-transparent">
                   Documents
                 </span>
               </h1>
-              <p className="text-sm text-red-100/80">
+              <p className="text-sm text-gray-600">
                 Tous les fichiers, plans, devis, photos et factures de vos chantiers, réunis ici.
               </p>
             </div>
             <Button
               onClick={() => setIsAddDialogOpen(true)}
-              className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0"
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0"
             >
               <Plus className="mr-2 h-4 w-4" />
               Ajouter un document
@@ -278,47 +278,47 @@ const Documents = () => {
         {/* Statistiques */}
         <BlurFade inView delay={0.05}>
           <div className="grid gap-4 md:grid-cols-4">
-            <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+            <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-red-200/70 mb-1">Total documents</p>
-                    <p className="text-2xl font-bold text-white">{totalDocuments}</p>
+                    <p className="text-sm text-gray-700/70 mb-1">Total documents</p>
+                    <p className="text-2xl font-bold text-gray-900">{totalDocuments}</p>
                   </div>
-                  <FileText className="h-8 w-8 text-red-400" />
+                  <FileText className="h-8 w-8 text-blue-600" />
                 </div>
               </CardContent>
             </Card>
-            <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+            <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-red-200/70 mb-1">À valider</p>
-                    <p className="text-2xl font-bold text-red-400">{documentsAValider}</p>
+                    <p className="text-sm text-gray-700/70 mb-1">À valider</p>
+                    <p className="text-2xl font-bold text-blue-600">{documentsAValider}</p>
                   </div>
-                  <AlertCircle className="h-8 w-8 text-red-400" />
+                  <AlertCircle className="h-8 w-8 text-blue-600" />
                 </div>
               </CardContent>
             </Card>
-            <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+            <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-red-200/70 mb-1">Signés</p>
+                    <p className="text-sm text-gray-700/70 mb-1">Signés</p>
                     <p className="text-2xl font-bold text-green-400">{documentsSignes}</p>
                   </div>
                   <CheckCircle2 className="h-8 w-8 text-green-400" />
                 </div>
               </CardContent>
             </Card>
-            <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+            <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-red-200/70 mb-1">Chantiers</p>
-                    <p className="text-2xl font-bold text-white">{chantiers.length}</p>
+                    <p className="text-sm text-gray-700/70 mb-1">Chantiers</p>
+                    <p className="text-2xl font-bold text-gray-900">{chantiers.length}</p>
                   </div>
-                  <Building2 className="h-8 w-8 text-red-400" />
+                  <Building2 className="h-8 w-8 text-blue-600" />
                 </div>
               </CardContent>
             </Card>
@@ -327,23 +327,23 @@ const Documents = () => {
 
         {/* Filtres */}
         <BlurFade inView delay={0.1}>
-          <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+          <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group">
             <CardContent className="p-4">
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-300/60" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-600/60" />
                   <Input
                     placeholder="Rechercher (nom fichier, chantier, prestataire)..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 bg-black/40 border-red-500/30 text-red-100 placeholder:text-red-300/50 focus:border-red-400"
+                    className="pl-10 bg-white border-blue-300/50 text-gray-700 placeholder:text-blue-600/50 focus:border-blue-500"
                   />
                 </div>
                 <Select value={chantierFilter} onValueChange={setChantierFilter}>
-                  <SelectTrigger className="w-full md:w-[200px] bg-black/40 border-red-500/30 text-red-100">
+                  <SelectTrigger className="w-full md:w-[200px] bg-white border-blue-300/50 text-gray-700">
                     <SelectValue placeholder="Tous les chantiers" />
                   </SelectTrigger>
-                  <SelectContent className="bg-black border-red-900/40 text-red-100">
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="all">Tous les chantiers</SelectItem>
                     {chantiers.map((chantier) => (
                       <SelectItem key={chantier} value={chantier}>
@@ -353,10 +353,10 @@ const Documents = () => {
                   </SelectContent>
                 </Select>
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-black/40 border-red-500/30 text-red-100">
+                  <SelectTrigger className="w-full md:w-[180px] bg-white border-blue-300/50 text-gray-700">
                     <SelectValue placeholder="Type" />
                   </SelectTrigger>
-                  <SelectContent className="bg-black border-red-900/40 text-red-100">
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="all">Tous les types</SelectItem>
                     <SelectItem value="Devis">Devis</SelectItem>
                     <SelectItem value="Facture">Facture</SelectItem>
@@ -368,10 +368,10 @@ const Documents = () => {
                   </SelectContent>
                 </Select>
                 <Select value={statutFilter} onValueChange={setStatutFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-black/40 border-red-500/30 text-red-100">
+                  <SelectTrigger className="w-full md:w-[180px] bg-white border-blue-300/50 text-gray-700">
                     <SelectValue placeholder="Statut" />
                   </SelectTrigger>
-                  <SelectContent className="bg-black border-red-900/40 text-red-100">
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="all">Tous les statuts</SelectItem>
                     <SelectItem value="À valider">À valider</SelectItem>
                     <SelectItem value="Signé">Signé</SelectItem>
@@ -387,12 +387,12 @@ const Documents = () => {
         {/* Onglets Vue Tableau / Vue Chantiers */}
         <BlurFade inView delay={0.15}>
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "tableau" | "chantiers")}>
-            <TabsList className="bg-black/40 border-red-900/40">
-              <TabsTrigger value="tableau" className="data-[state=active]:bg-red-500/20 data-[state=active]:text-red-400">
+            <TabsList className="bg-white border-blue-200/50">
+              <TabsTrigger value="tableau" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
                 <BarChart3 className="mr-2 h-4 w-4" />
                 Vue tableau
               </TabsTrigger>
-              <TabsTrigger value="chantiers" className="data-[state=active]:bg-red-500/20 data-[state=active]:text-red-400">
+              <TabsTrigger value="chantiers" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
                 <Folder className="mr-2 h-4 w-4" />
                 Vue par chantier
               </TabsTrigger>
@@ -400,11 +400,11 @@ const Documents = () => {
 
             {/* Vue Tableau */}
             <TabsContent value="tableau" className="mt-4">
-              <Card className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group">
+              <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-white">Tous les documents</CardTitle>
-                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                    <CardTitle className="text-gray-900">Tous les documents</CardTitle>
+                    <Badge className="bg-red-500/20 text-blue-600 border-blue-300/50">
                       {filteredDocuments.length} document{filteredDocuments.length > 1 ? "s" : ""}
                     </Badge>
                   </div>
@@ -413,41 +413,41 @@ const Documents = () => {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-red-900/30 bg-red-950/20">
-                          <th className="text-left py-3 px-4 font-semibold text-red-200">Nom du document</th>
-                          <th className="text-left py-3 px-4 font-semibold text-red-200">Chantier</th>
-                          <th className="text-left py-3 px-4 font-semibold text-red-200">Type</th>
-                          <th className="text-left py-3 px-4 font-semibold text-red-200">Statut</th>
-                          <th className="text-left py-3 px-4 font-semibold text-red-200">Ajouté le</th>
-                          <th className="text-left py-3 px-4 font-semibold text-red-200">Actions</th>
+                        <tr className="border-b border-blue-200/50 bg-red-950/20">
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Nom du document</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Chantier</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Type</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Statut</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Ajouté le</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredDocuments.map((doc) => (
                           <tr
                             key={doc.id}
-                            className="border-b border-red-900/20 hover:bg-red-950/20 transition-colors"
+                            className="border-b border-blue-100/50 hover:bg-blue-50/50 transition-colors"
                           >
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-3">
                                 {getTypeIcon(doc.type, doc.extension)}
                                 <div>
-                                  <p className="font-medium text-white">{doc.nom}</p>
+                                  <p className="font-medium text-gray-900">{doc.nom}</p>
                                   {doc.taille && (
-                                    <p className="text-xs text-red-300/60">{doc.taille}</p>
+                                    <p className="text-xs text-blue-600/60">{doc.taille}</p>
                                   )}
                                 </div>
                               </div>
                             </td>
                             <td className="py-3 px-4">
-                              <div className="flex items-center gap-2 text-red-200/80">
-                                <Building2 className="h-4 w-4 text-red-400" />
+                              <div className="flex items-center gap-2 text-gray-700/80">
+                                <Building2 className="h-4 w-4 text-blue-600" />
                                 <span>{doc.chantier}</span>
                               </div>
                             </td>
                             <td className="py-3 px-4">{getTypeBadge(doc.type)}</td>
                             <td className="py-3 px-4">{getStatutBadge(doc.statut)}</td>
-                            <td className="py-3 px-4 text-red-200/80">
+                            <td className="py-3 px-4 text-gray-700/80">
                               {format(parseISO(doc.dateAjout), "d MMM yyyy", { locale: fr })}
                             </td>
                             <td className="py-3 px-4">
@@ -455,7 +455,7 @@ const Documents = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-red-300 hover:text-red-400"
+                                  className="h-8 w-8 p-0 text-blue-600 hover:text-blue-600"
                                   title="Voir"
                                 >
                                   <Eye className="h-4 w-4" />
@@ -463,7 +463,7 @@ const Documents = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-red-300 hover:text-red-400"
+                                  className="h-8 w-8 p-0 text-blue-600 hover:text-blue-600"
                                   title="Télécharger"
                                 >
                                   <Download className="h-4 w-4" />
@@ -471,7 +471,7 @@ const Documents = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-red-400 hover:text-red-500"
+                                  className="h-8 w-8 p-0 text-blue-600 hover:text-gray-9000"
                                   onClick={() => handleDelete(doc.id)}
                                   title="Supprimer"
                                 >
@@ -480,7 +480,7 @@ const Documents = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-red-300 hover:text-red-400"
+                                  className="h-8 w-8 p-0 text-blue-600 hover:text-blue-600"
                                   title="Associer"
                                 >
                                   <Link2 className="h-4 w-4" />
@@ -493,8 +493,8 @@ const Documents = () => {
                     </table>
                     {filteredDocuments.length === 0 && (
                       <div className="text-center py-12">
-                        <FileText className="h-12 w-12 text-red-300/30 mx-auto mb-3" />
-                        <p className="text-red-200/60">Aucun document trouvé</p>
+                        <FileText className="h-12 w-12 text-blue-600/30 mx-auto mb-3" />
+                        <p className="text-gray-700/60">Aucun document trouvé</p>
                       </div>
                     )}
                   </div>
@@ -522,15 +522,15 @@ const Documents = () => {
                   return (
                     <Card
                       key={chantier}
-                      className="card-3d border border-red-900/40 bg-black/70 text-red-50 backdrop-blur-xl group"
+                      className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group"
                     >
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <Building2 className="h-5 w-5 text-red-400" />
-                            <CardTitle className="text-white">{chantier}</CardTitle>
+                            <Building2 className="h-5 w-5 text-blue-600" />
+                            <CardTitle className="text-gray-900">{chantier}</CardTitle>
                           </div>
-                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                          <Badge className="bg-red-500/20 text-blue-600 border-blue-300/50">
                             {docsFiltered.length} document{docsFiltered.length > 1 ? "s" : ""}
                           </Badge>
                         </div>
@@ -540,17 +540,17 @@ const Documents = () => {
                           {docsFiltered.map((doc) => (
                             <div
                               key={doc.id}
-                              className="flex items-center justify-between p-3 bg-red-950/20 rounded-lg border border-red-900/30 hover:border-red-500/50 transition-colors"
+                              className="flex items-center justify-between p-3 bg-red-950/20 rounded-lg border border-blue-200/50 hover:border-red-500/50 transition-colors"
                             >
                               <div className="flex items-center gap-3 flex-1">
                                 {getTypeIcon(doc.type, doc.extension)}
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-1">
-                                    <p className="font-medium text-white">{doc.nom}</p>
+                                    <p className="font-medium text-gray-900">{doc.nom}</p>
                                     {getTypeBadge(doc.type)}
                                     {getStatutBadge(doc.statut)}
                                   </div>
-                                  <div className="flex items-center gap-4 text-xs text-red-300/60">
+                                  <div className="flex items-center gap-4 text-xs text-blue-600/60">
                                     <span>{format(parseISO(doc.dateAjout), "d MMM yyyy", { locale: fr })}</span>
                                     {doc.taille && <span>{doc.taille}</span>}
                                   </div>
@@ -560,7 +560,7 @@ const Documents = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-red-300 hover:text-red-400"
+                                  className="h-8 w-8 p-0 text-blue-600 hover:text-blue-600"
                                   title="Voir"
                                 >
                                   <Eye className="h-4 w-4" />
@@ -568,7 +568,7 @@ const Documents = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-red-300 hover:text-red-400"
+                                  className="h-8 w-8 p-0 text-blue-600 hover:text-blue-600"
                                   title="Télécharger"
                                 >
                                   <Download className="h-4 w-4" />
@@ -576,7 +576,7 @@ const Documents = () => {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0 text-red-400 hover:text-red-500"
+                                  className="h-8 w-8 p-0 text-blue-600 hover:text-gray-9000"
                                   onClick={() => handleDelete(doc.id)}
                                   title="Supprimer"
                                 >
@@ -592,8 +592,8 @@ const Documents = () => {
                 })}
                 {Object.keys(documentsParChantier).length === 0 && (
                   <div className="text-center py-12">
-                    <Folder className="h-12 w-12 text-red-300/30 mx-auto mb-3" />
-                    <p className="text-red-200/60">Aucun chantier trouvé</p>
+                    <Folder className="h-12 w-12 text-blue-600/30 mx-auto mb-3" />
+                    <p className="text-gray-700/60">Aucun chantier trouvé</p>
                   </div>
                 )}
               </div>
@@ -603,27 +603,27 @@ const Documents = () => {
 
         {/* Dialog Ajouter un document */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogContent className="bg-black/95 border-red-900/40 text-red-50 max-w-2xl">
+          <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-white">Ajouter un document</DialogTitle>
-              <DialogDescription className="text-red-200/70">
+              <DialogTitle className="text-gray-900">Ajouter un document</DialogTitle>
+              <DialogDescription className="text-gray-700/70">
                 Téléversez un fichier et associez-le à un chantier
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               {/* Upload */}
               <div>
-                <label className="text-sm font-medium text-red-200/80 mb-2 block">
+                <label className="text-sm font-medium text-gray-700/80 mb-2 block">
                   Fichier
                 </label>
-                <div className="border-2 border-dashed border-red-500/30 rounded-lg p-8 text-center hover:border-red-500/50 transition-colors">
-                  <Upload className="h-12 w-12 text-red-400/50 mx-auto mb-3" />
-                  <p className="text-sm text-red-200/70 mb-2">
+                <div className="border-2 border-dashed border-blue-300/50 rounded-lg p-8 text-center hover:border-red-500/50 transition-colors">
+                  <Upload className="h-12 w-12 text-blue-600/50 mx-auto mb-3" />
+                  <p className="text-sm text-gray-700/70 mb-2">
                     Glissez-déposez un fichier ici ou cliquez pour sélectionner
                   </p>
                   <Button
                     variant="outline"
-                    className="border-red-500/30 text-red-100 hover:bg-red-500/10"
+                    className="border-blue-300/50 text-gray-700 hover:bg-blue-50"
                   >
                     <Upload className="mr-2 h-4 w-4" />
                     Choisir un fichier
@@ -633,14 +633,14 @@ const Documents = () => {
 
               {/* Chantier */}
               <div>
-                <label className="text-sm font-medium text-red-200/80 mb-2 block">
+                <label className="text-sm font-medium text-gray-700/80 mb-2 block">
                   Associer à un chantier
                 </label>
                 <Select>
-                  <SelectTrigger className="bg-black/40 border-red-500/30 text-red-100">
+                  <SelectTrigger className="bg-white border-blue-300/50 text-gray-700">
                     <SelectValue placeholder="Sélectionner un chantier" />
                   </SelectTrigger>
-                  <SelectContent className="bg-black border-red-900/40 text-red-100">
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     {chantiers.map((chantier) => (
                       <SelectItem key={chantier} value={chantier}>
                         {chantier}
@@ -652,14 +652,14 @@ const Documents = () => {
 
               {/* Type */}
               <div>
-                <label className="text-sm font-medium text-red-200/80 mb-2 block">
+                <label className="text-sm font-medium text-gray-700/80 mb-2 block">
                   Type de document
                 </label>
                 <Select>
-                  <SelectTrigger className="bg-black/40 border-red-500/30 text-red-100">
+                  <SelectTrigger className="bg-white border-blue-300/50 text-gray-700">
                     <SelectValue placeholder="Sélectionner un type" />
                   </SelectTrigger>
-                  <SelectContent className="bg-black border-red-900/40 text-red-100">
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="Devis">Devis</SelectItem>
                     <SelectItem value="Facture">Facture</SelectItem>
                     <SelectItem value="Plan">Plan</SelectItem>
@@ -673,30 +673,30 @@ const Documents = () => {
 
               {/* Tags (optionnel) */}
               <div>
-                <label className="text-sm font-medium text-red-200/80 mb-2 block">
+                <label className="text-sm font-medium text-gray-700/80 mb-2 block">
                   Tags personnalisés (optionnel)
                 </label>
                 <Input
                   placeholder="Ex: urgent, validation, etc."
-                  className="bg-black/40 border-red-500/30 text-red-100 placeholder:text-red-300/50"
+                  className="bg-white border-blue-300/50 text-gray-700 placeholder:text-blue-600/50"
                 />
               </div>
 
               {/* Commentaire */}
               <div>
-                <label className="text-sm font-medium text-red-200/80 mb-2 block">
+                <label className="text-sm font-medium text-gray-700/80 mb-2 block">
                   Commentaire / note interne
                 </label>
                 <Textarea
                   placeholder="Ajoutez une note sur ce document..."
-                  className="bg-black/40 border-red-500/30 text-red-100 placeholder:text-red-300/50 min-h-[100px]"
+                  className="bg-white border-blue-300/50 text-gray-700 placeholder:text-blue-600/50 min-h-[100px]"
                 />
               </div>
 
               {/* Remplace un document */}
-              <div className="flex items-center gap-2 pt-2 border-t border-red-900/30">
+              <div className="flex items-center gap-2 pt-2 border-t border-blue-200/50">
                 <Switch className="data-[state=checked]:bg-red-500" />
-                <span className="text-sm text-red-200/70">
+                <span className="text-sm text-gray-700/70">
                   Ce document remplace un précédent ?
                 </span>
               </div>
@@ -706,13 +706,13 @@ const Documents = () => {
                 <Button
                   onClick={() => setIsAddDialogOpen(false)}
                   variant="outline"
-                  className="border-red-500/30 text-red-100 hover:bg-red-500/10"
+                  className="border-blue-300/50 text-gray-700 hover:bg-blue-50"
                 >
                   Annuler
                 </Button>
                 <Button
                   onClick={() => setIsAddDialogOpen(false)}
-                  className="bg-red-500 hover:bg-red-600 text-white"
+                  className="bg-red-500 hover:bg-red-600 text-gray-900"
                 >
                   <Upload className="mr-2 h-4 w-4" />
                   Ajouter le document

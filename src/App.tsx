@@ -6,10 +6,12 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
-import Chantiers from "./pages/Chantiers";
-import Prestataires from "./pages/Prestataires";
+import Vehicules from "./pages/Vehicules";
+import Devis from "./pages/Devis";
+import Factures from "./pages/Factures";
+import Catalogue from "./pages/Catalogue";
+import Clients from "./pages/Clients";
 import Relances from "./pages/Relances";
-import Documents from "./pages/Documents";
 import RapportFinancier from "./pages/RapportFinancier";
 import NotFound from "./pages/NotFound";
 
@@ -25,10 +27,12 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/chantiers" element={<Chantiers />} />
-          <Route path="/prestataires" element={<Prestataires />} />
+          <Route path="/vehicules" element={<Vehicules />} />
+          <Route path="/devis" element={<Devis />} />
+          <Route path="/factures" element={<Factures />} />
+          <Route path="/catalogue" element={<Catalogue />} />
+          <Route path="/clients" element={<Clients />} />
           <Route path="/relances" element={<Relances />} />
-          <Route path="/documents" element={<Documents />} />
           <Route path="/rapport-financier" element={<RapportFinancier />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
