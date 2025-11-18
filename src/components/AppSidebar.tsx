@@ -1,5 +1,6 @@
-import { LayoutDashboard, Car, FileText, Bell, Receipt, TrendingUp, UserCheck, BookOpen } from "lucide-react";
+import { LayoutDashboard, Car, FileText, Bell, Receipt, TrendingUp, UserCheck, BookOpen, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
+import { useNavigate } from "react-router-dom";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +28,14 @@ const items = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    // Optionnel : nettoyer le localStorage si nécessaire
+    // localStorage.removeItem("userFirstName");
+    // localStorage.removeItem("userEmail");
+    navigate("/login");
+  };
 
   return (
     <Sidebar className="border-r border-blue-200/50 bg-white/95 text-gray-900">
@@ -81,11 +90,22 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-blue-200/50 p-6">
-        <p className="text-center text-xs text-gray-500">
-          Prototype réalisé par<br />
-          <span className="font-semibold text-blue-600">Adimi Agency</span>
-        </p>
+      <SidebarFooter className="border-t border-blue-200/50 p-4">
+        <div className="flex flex-col gap-3">
+          <SidebarMenuButton
+            onClick={handleLogout}
+            className="w-full justify-start gap-3 px-4 py-3 text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+          >
+            <LogOut className="h-5 w-5" />
+            {!isCollapsed && <span className="font-medium">Déconnexion</span>}
+          </SidebarMenuButton>
+          {!isCollapsed && (
+            <p className="text-center text-xs text-gray-500 px-4">
+              Prototype réalisé par{" "}
+              <span className="font-semibold text-blue-600">Adimi Agency</span>
+            </p>
+          )}
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
