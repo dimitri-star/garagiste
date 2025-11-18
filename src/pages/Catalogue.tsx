@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,12 +13,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BlurFade } from "@/components/ui/blur-fade";
 import {
@@ -33,6 +33,7 @@ import {
   Clock,
   Trash2,
   CheckCircle2,
+  X,
 } from "lucide-react";
 
 interface Prestation {
@@ -52,19 +53,33 @@ interface Piece {
   prixAchat: number;
   coefficient: number;
   prixVente: number;
+  stock?: number; // V2
   statut: "actif" | "archivé";
 }
 
 const Catalogue = () => {
   const [activeTab, setActiveTab] = useState<"prestations" | "pieces">("prestations");
-  const [searchPrestation, setSearchPrestation] = useState("");
-  const [searchPiece, setSearchPiece] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categorieFilter, setCategorieFilter] = useState<string>("all");
   const [selectedPrestation, setSelectedPrestation] = useState<Prestation | null>(null);
   const [selectedPiece, setSelectedPiece] = useState<Piece | null>(null);
-  const [isPrestationDialogOpen, setIsPrestationDialogOpen] = useState(false);
-  const [isPieceDialogOpen, setIsPieceDialogOpen] = useState(false);
-  const [isCreatePrestation, setIsCreatePrestation] = useState(false);
-  const [isCreatePiece, setIsCreatePiece] = useState(false);
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // États pour le formulaire d'édition dans le Sheet
+  const [formLibelle, setFormLibelle] = useState("");
+  const [formTempsEstime, setFormTempsEstime] = useState(0);
+  const [formCategorie, setFormCategorie] = useState("");
+  const [formTypeTarification, setFormTypeTarification] = useState<"fixe" | "horaire">("fixe");
+  const [formPrixMainOeuvre, setFormPrixMainOeuvre] = useState<number | undefined>(undefined);
+  const [formTauxHoraire, setFormTauxHoraire] = useState<number | undefined>(undefined);
+
+  // États pour les pièces
+  const [formReference, setFormReference] = useState("");
+  const [formPrixAchat, setFormPrixAchat] = useState(0);
+  const [formCoefficient, setFormCoefficient] = useState(2);
+  const [formPrixVente, setFormPrixVente] = useState(0);
+  const [autoCalculatePrix, setAutoCalculatePrix] = useState(true);
 
   const [prestations, setPrestations] = useState<Prestation[]>([
     {
@@ -80,7 +95,7 @@ const Catalogue = () => {
       libelle: "Remplacement courroie de distribution",
       tempsEstime: 2,
       tauxHoraire: 90,
-      categorie: "Réparation",
+      categorie: "Moteur",
       statut: "actif",
     },
     {
@@ -140,34 +155,145 @@ const Catalogue = () => {
     },
   ]);
 
-  const filteredPrestations = prestations.filter((p) => {
-    const matchesSearch =
-      searchPrestation === "" ||
-      p.libelle.toLowerCase().includes(searchPrestation.toLowerCase()) ||
-      p.categorie.toLowerCase().includes(searchPrestation.toLowerCase());
-    const isActive = p.statut === "actif";
-    return matchesSearch && isActive;
-  });
+  // Catégories uniques pour les filtres
+  const categories = useMemo(() => {
+    return Array.from(new Set(prestations.map((p) => p.categorie))).filter(Boolean);
+  }, [prestations]);
 
-  const filteredPieces = pieces.filter((p) => {
-    const matchesSearch =
-      searchPiece === "" ||
-      p.libelle.toLowerCase().includes(searchPiece.toLowerCase()) ||
-      p.reference.toLowerCase().includes(searchPiece.toLowerCase());
-    const isActive = p.statut === "actif";
-    return matchesSearch && isActive;
-  });
+  const filteredPrestations = useMemo(() => {
+    return prestations.filter((p) => {
+      const matchesSearch =
+        searchQuery === "" ||
+        p.libelle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.categorie.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategorie = categorieFilter === "all" || p.categorie === categorieFilter;
+      const isActive = p.statut === "actif";
+      return matchesSearch && matchesCategorie && isActive;
+    });
+  }, [prestations, searchQuery, categorieFilter]);
+
+  const filteredPieces = useMemo(() => {
+    return pieces.filter((p) => {
+      const matchesSearch =
+        searchQuery === "" ||
+        p.libelle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.reference.toLowerCase().includes(searchQuery.toLowerCase());
+      const isActive = p.statut === "actif";
+      return matchesSearch && isActive;
+    });
+  }, [pieces, searchQuery]);
+
+  const handleOpenPrestation = (prestation: Prestation) => {
+    setSelectedPrestation(prestation);
+    setSelectedPiece(null);
+    setFormLibelle(prestation.libelle);
+    setFormTempsEstime(prestation.tempsEstime);
+    setFormCategorie(prestation.categorie);
+    setFormTypeTarification(prestation.prixMainOeuvre ? "fixe" : "horaire");
+    setFormPrixMainOeuvre(prestation.prixMainOeuvre);
+    setFormTauxHoraire(prestation.tauxHoraire);
+    setIsCreating(false);
+    setIsDetailSheetOpen(true);
+  };
+
+  const handleOpenPiece = (piece: Piece) => {
+    setSelectedPiece(piece);
+    setSelectedPrestation(null);
+    setFormReference(piece.reference);
+    setFormLibelle(piece.libelle);
+    setFormPrixAchat(piece.prixAchat);
+    setFormCoefficient(piece.coefficient);
+    setFormPrixVente(piece.prixVente);
+    setIsCreating(false);
+    setIsDetailSheetOpen(true);
+  };
 
   const handleNouvellePrestation = () => {
     setSelectedPrestation(null);
-    setIsCreatePrestation(true);
-    setIsPrestationDialogOpen(true);
+    setSelectedPiece(null);
+    setFormLibelle("");
+    setFormTempsEstime(0);
+    setFormCategorie("");
+    setFormTypeTarification("fixe");
+    setFormPrixMainOeuvre(undefined);
+    setFormTauxHoraire(undefined);
+    setIsCreating(true);
+    setIsDetailSheetOpen(true);
   };
 
-  const handleModifierPrestation = (prestation: Prestation) => {
-    setSelectedPrestation(prestation);
-    setIsCreatePrestation(false);
-    setIsPrestationDialogOpen(true);
+  const handleNouvellePiece = () => {
+    setSelectedPiece(null);
+    setSelectedPrestation(null);
+    setFormReference("");
+    setFormLibelle("");
+    setFormPrixAchat(0);
+    setFormCoefficient(2);
+    setFormPrixVente(0);
+    setIsCreating(true);
+    setIsDetailSheetOpen(true);
+  };
+
+  const handleSauvegarder = () => {
+    if (activeTab === "prestations") {
+      if (isCreating) {
+        const nouvellePrestation: Prestation = {
+          id: `prestation-${Date.now()}`,
+          libelle: formLibelle,
+          tempsEstime: formTempsEstime,
+          categorie: formCategorie,
+          statut: "actif",
+          ...(formTypeTarification === "fixe"
+            ? { prixMainOeuvre: formPrixMainOeuvre }
+            : { tauxHoraire: formTauxHoraire }),
+        };
+        setPrestations([...prestations, nouvellePrestation]);
+      } else if (selectedPrestation) {
+        setPrestations(
+          prestations.map((p) =>
+            p.id === selectedPrestation.id
+              ? {
+                  ...p,
+                  libelle: formLibelle,
+                  tempsEstime: formTempsEstime,
+                  categorie: formCategorie,
+                  ...(formTypeTarification === "fixe"
+                    ? { prixMainOeuvre: formPrixMainOeuvre, tauxHoraire: undefined }
+                    : { tauxHoraire: formTauxHoraire, prixMainOeuvre: undefined }),
+                }
+              : p
+          )
+        );
+      }
+    } else {
+      if (isCreating) {
+        const nouvellePiece: Piece = {
+          id: `piece-${Date.now()}`,
+          reference: formReference,
+          libelle: formLibelle,
+          prixAchat: formPrixAchat,
+          coefficient: formCoefficient,
+          prixVente: autoCalculatePrix ? formPrixAchat * formCoefficient : formPrixVente,
+          statut: "actif",
+        };
+        setPieces([...pieces, nouvellePiece]);
+      } else if (selectedPiece) {
+        setPieces(
+          pieces.map((p) =>
+            p.id === selectedPiece.id
+              ? {
+                  ...p,
+                  reference: formReference,
+                  libelle: formLibelle,
+                  prixAchat: formPrixAchat,
+                  coefficient: formCoefficient,
+                  prixVente: autoCalculatePrix ? formPrixAchat * formCoefficient : formPrixVente,
+                }
+              : p
+          )
+        );
+      }
+    }
+    setIsDetailSheetOpen(false);
   };
 
   const handleDupliquerPrestation = (prestation: Prestation) => {
@@ -177,24 +303,6 @@ const Catalogue = () => {
       libelle: `${prestation.libelle} (copie)`,
     };
     setPrestations([...prestations, nouvellePrestation]);
-  };
-
-  const handleArchiverPrestation = (prestationId: string) => {
-    setPrestations(
-      prestations.map((p) => (p.id === prestationId ? { ...p, statut: "archivé" as const } : p))
-    );
-  };
-
-  const handleNouvellePiece = () => {
-    setSelectedPiece(null);
-    setIsCreatePiece(true);
-    setIsPieceDialogOpen(true);
-  };
-
-  const handleModifierPiece = (piece: Piece) => {
-    setSelectedPiece(piece);
-    setIsCreatePiece(false);
-    setIsPieceDialogOpen(true);
   };
 
   const handleDupliquerPiece = (piece: Piece) => {
@@ -207,25 +315,22 @@ const Catalogue = () => {
     setPieces([...pieces, nouvellePiece]);
   };
 
+  const handleArchiverPrestation = (prestationId: string) => {
+    setPrestations(
+      prestations.map((p) => (p.id === prestationId ? { ...p, statut: "archivé" as const } : p))
+    );
+  };
+
   const handleArchiverPiece = (pieceId: string) => {
     setPieces(pieces.map((p) => (p.id === pieceId ? { ...p, statut: "archivé" as const } : p)));
   };
 
-  const handleSauvegarderPrestation = () => {
-    // Logique de sauvegarde (ici on fait juste fermer le dialog)
-    setIsPrestationDialogOpen(false);
-    setSelectedPrestation(null);
-  };
-
-  const handleSauvegarderPiece = () => {
-    // Logique de sauvegarde (ici on fait juste fermer le dialog)
-    setIsPieceDialogOpen(false);
-    setSelectedPiece(null);
-  };
-
-  const calculerPrixVente = (prixAchat: number, coefficient: number) => {
-    return prixAchat * coefficient;
-  };
+  // Calcul automatique du prix de vente
+  useMemo(() => {
+    if (autoCalculatePrix && activeTab === "pieces") {
+      setFormPrixVente(formPrixAchat * formCoefficient);
+    }
+  }, [formPrixAchat, formCoefficient, autoCalculatePrix, activeTab]);
 
   return (
     <DashboardLayout>
@@ -235,7 +340,7 @@ const Catalogue = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">
-                Catalogue de références
+                CATALOGUE DE RÉFÉRENCES
               </p>
               <h1 className="mb-2 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900">
                 Catalogue{" "}
@@ -245,44 +350,73 @@ const Catalogue = () => {
               </h1>
               <p className="text-sm text-gray-600">Gérer les prestations types et pièces standards</p>
             </div>
+            {activeTab === "prestations" ? (
+              <Button
+                onClick={handleNouvellePrestation}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Nouvelle prestation
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNouvellePiece}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Nouvelle pièce
+              </Button>
+            )}
           </div>
         </BlurFade>
 
         {/* Onglets Prestations / Pièces */}
         <BlurFade inView delay={0.05}>
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
-            <div className="flex items-center justify-between mb-4">
-              <TabsList className="bg-white border-blue-200/50">
-                <TabsTrigger value="prestations" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
-                  <Wrench className="mr-2 h-4 w-4" />
-                  Prestations
-                </TabsTrigger>
-                <TabsTrigger value="pieces" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
-                  <Package className="mr-2 h-4 w-4" />
-                  Pièces
-                </TabsTrigger>
-              </TabsList>
-              {activeTab === "prestations" ? (
-                <Button
-                  onClick={handleNouvellePrestation}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nouvelle prestation
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleNouvellePiece}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0"
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nouvelle pièce
-                </Button>
-              )}
-            </div>
+            <TabsList className="bg-white border-blue-200/50 mb-4">
+              <TabsTrigger value="prestations" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
+                <Wrench className="mr-2 h-4 w-4" />
+                Prestations
+              </TabsTrigger>
+              <TabsTrigger value="pieces" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
+                <Package className="mr-2 h-4 w-4" />
+                Pièces
+              </TabsTrigger>
+            </TabsList>
 
-            {/* Onglet Prestations */}
-            <TabsContent value="prestations">
+            {/* Onglet Prestations - Layout Cards */}
+            <TabsContent value="prestations" className="space-y-4">
+              {/* Recherche et Filtres */}
+              <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row gap-3">
+                    <div className="flex-1 relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Rechercher une prestation..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                      />
+                    </div>
+                    <Select value={categorieFilter} onValueChange={setCategorieFilter}>
+                      <SelectTrigger className="w-full md:w-[200px] bg-white border-blue-300/50 text-gray-900">
+                        <SelectValue placeholder="Toutes les catégories" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                        <SelectItem value="all">Toutes les catégories</SelectItem>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Cards Prestations */}
               <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -293,81 +427,76 @@ const Catalogue = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {/* Recherche */}
-                  <div className="mb-4 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Rechercher une prestation..."
-                      value={searchPrestation}
-                      onChange={(e) => setSearchPrestation(e.target.value)}
-                      className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
-                    />
-                  </div>
-
-                  {/* Liste */}
-                  <div className="space-y-2">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {filteredPrestations.map((prestation) => (
-                      <div
+                      <Card
                         key={prestation.id}
-                        className="p-4 border border-blue-200/50 rounded-lg bg-white hover:bg-blue-50/50 transition-colors"
+                        className="border border-blue-200/50 bg-white hover:border-blue-400 hover:shadow-md transition-all cursor-pointer"
+                        onClick={() => handleOpenPrestation(prestation)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                              <Wrench className="h-5 w-5 text-blue-600" />
-                              <div>
-                                <p className="font-semibold text-gray-900">{prestation.libelle}</p>
-                                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                                  <div className="flex items-center gap-1">
-                                    <Clock className="h-4 w-4 text-blue-600" />
-                                    <span>{prestation.tempsEstime}h</span>
-                                  </div>
-                                  {prestation.prixMainOeuvre ? (
-                                    <div className="flex items-center gap-1">
-                                      <Euro className="h-4 w-4 text-blue-600" />
-                                      <span>{prestation.prixMainOeuvre}€ (prix fixe)</span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-1">
-                                      <Euro className="h-4 w-4 text-blue-600" />
-                                      <span>{prestation.tauxHoraire}€/h (taux horaire)</span>
-                                    </div>
-                                  )}
-                                  <Badge className="bg-blue-100 text-blue-700 border-blue-300 text-xs">
-                                    {prestation.categorie}
-                                  </Badge>
-                                </div>
+                        <CardContent className="p-5">
+                          <div className="flex flex-col h-full">
+                            <div className="flex-1">
+                              <h3 className="font-semibold text-lg text-gray-900 mb-3">
+                                {prestation.libelle}
+                              </h3>
+                              <div className="flex flex-wrap gap-2 mb-3">
+                                <Badge className="bg-blue-100 text-blue-700 border-blue-300 text-xs">
+                                  {prestation.categorie}
+                                </Badge>
+                                <Badge className="bg-gray-100 text-gray-700 border-gray-300 text-xs flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {prestation.tempsEstime}h
+                                </Badge>
+                                <Badge className="bg-green-100 text-green-700 border-green-300 text-xs flex items-center gap-1">
+                                  <Euro className="h-3 w-3" />
+                                  {prestation.prixMainOeuvre
+                                    ? `${prestation.prixMainOeuvre}€`
+                                    : `${prestation.tauxHoraire}€/h`}
+                                </Badge>
                               </div>
                             </div>
+                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-blue-100/50">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDupliquerPrestation(prestation);
+                                }}
+                                className="h-8 w-8 p-0 hover:bg-blue-50"
+                                title="Dupliquer"
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenPrestation(prestation);
+                                }}
+                                className="h-8 w-8 p-0 hover:bg-blue-50"
+                                title="Éditer"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleArchiverPrestation(prestation.id);
+                                }}
+                                className="h-8 w-8 p-0 hover:bg-red-50"
+                                title="Archiver"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDupliquerPrestation(prestation)}
-                              className="h-8 w-8 p-0 hover:bg-blue-50"
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleModifierPrestation(prestation)}
-                              className="h-8 w-8 p-0 hover:bg-blue-50"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleArchiverPrestation(prestation.id)}
-                              className="h-8 w-8 p-0 hover:bg-red-50"
-                            >
-                              <Archive className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
 
@@ -381,8 +510,24 @@ const Catalogue = () => {
               </Card>
             </TabsContent>
 
-            {/* Onglet Pièces */}
-            <TabsContent value="pieces">
+            {/* Onglet Pièces - Layout Table dense */}
+            <TabsContent value="pieces" className="space-y-4">
+              {/* Recherche */}
+              <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
+                <CardContent className="p-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Rechercher une pièce (libellé, référence)..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Table dense */}
               <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -392,75 +537,77 @@ const Catalogue = () => {
                     </Badge>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  {/* Recherche */}
-                  <div className="mb-4 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Rechercher une pièce (libellé, référence)..."
-                      value={searchPiece}
-                      onChange={(e) => setSearchPiece(e.target.value)}
-                      className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
-                    />
-                  </div>
-
-                  {/* Liste */}
-                  <div className="space-y-2">
-                    {filteredPieces.map((piece) => (
-                      <div
-                        key={piece.id}
-                        className="p-4 border border-blue-200/50 rounded-lg bg-white hover:bg-blue-50/50 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
-                              <Package className="h-5 w-5 text-blue-600" />
-                              <div>
-                                <p className="font-semibold text-gray-900">{piece.libelle}</p>
-                                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                                  <span className="font-medium">Ref: {piece.reference}</span>
-                                  <div className="flex items-center gap-1">
-                                    <Euro className="h-4 w-4 text-blue-600" />
-                                    <span>Achat: {piece.prixAchat.toLocaleString()}€</span>
-                                  </div>
-                                  <span>Coef: {piece.coefficient}x</span>
-                                  <div className="flex items-center gap-1 font-semibold text-gray-900">
-                                    <Euro className="h-4 w-4 text-green-600" />
-                                    <span>Vente: {piece.prixVente.toLocaleString()}€</span>
-                                  </div>
-                                </div>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-blue-200/50 bg-blue-50/30">
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Référence</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Libellé</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Prix achat</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Coeff</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700">Prix vente</th>
+                          <th className="text-left py-3 px-4 font-semibold text-gray-700 w-24">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredPieces.map((piece) => (
+                          <tr
+                            key={piece.id}
+                            className="border-b border-blue-100/50 hover:bg-blue-50/50 transition-colors cursor-pointer"
+                            onClick={() => handleOpenPiece(piece)}
+                          >
+                            <td className="py-3 px-4 text-gray-900 font-medium">{piece.reference}</td>
+                            <td className="py-3 px-4 text-gray-700">{piece.libelle}</td>
+                            <td className="py-3 px-4 text-gray-700">{piece.prixAchat.toLocaleString()} €</td>
+                            <td className="py-3 px-4 text-gray-700">{piece.coefficient}x</td>
+                            <td className="py-3 px-4 text-gray-900 font-semibold">
+                              {piece.prixVente.toLocaleString()} €
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDupliquerPiece(piece);
+                                  }}
+                                  className="h-7 w-7 p-0 hover:bg-blue-50"
+                                  title="Dupliquer"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenPiece(piece);
+                                  }}
+                                  className="h-7 w-7 p-0 hover:bg-blue-50"
+                                  title="Éditer"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleArchiverPiece(piece.id);
+                                  }}
+                                  className="h-7 w-7 p-0 hover:bg-red-50"
+                                  title="Archiver"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 text-red-600" />
+                                </Button>
                               </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleDupliquerPiece(piece)}
-                              className="h-8 w-8 p-0 hover:bg-blue-50"
-                            >
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleModifierPiece(piece)}
-                              className="h-8 w-8 p-0 hover:bg-blue-50"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleArchiverPiece(piece.id)}
-                              className="h-8 w-8 p-0 hover:bg-red-50"
-                            >
-                              <Archive className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
 
                   {filteredPieces.length === 0 && (
@@ -475,205 +622,221 @@ const Catalogue = () => {
           </Tabs>
         </BlurFade>
 
-        {/* Dialog Création/Modification Prestation */}
-        <Dialog open={isPrestationDialogOpen} onOpenChange={setIsPrestationDialogOpen}>
-          <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-gray-900">
-                {isCreatePrestation ? "Nouvelle prestation" : "Modifier la prestation"}
-              </DialogTitle>
-              <DialogDescription className="text-gray-700/70">
-                {isCreatePrestation
-                  ? "Ajoutez une nouvelle prestation au catalogue"
-                  : "Modifiez les informations de la prestation"}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Libellé</label>
-                <Input
-                  defaultValue={selectedPrestation?.libelle || ""}
-                  placeholder="Ex: Vidange moteur"
-                  className="bg-white border-blue-300/50 text-gray-900"
-                />
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Temps estimé (heures)</label>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    defaultValue={selectedPrestation?.tempsEstime || 0}
-                    placeholder="Ex: 1.5"
-                    className="bg-white border-blue-300/50 text-gray-900"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Catégorie</label>
-                  <Input
-                    defaultValue={selectedPrestation?.categorie || ""}
-                    placeholder="Ex: Entretien"
-                    className="bg-white border-blue-300/50 text-gray-900"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Type de tarification</label>
-                <Select defaultValue={selectedPrestation?.prixMainOeuvre ? "fixe" : "horaire"}>
-                  <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                    <SelectItem value="fixe">Prix main d'œuvre fixe</SelectItem>
-                    <SelectItem value="horaire">Taux horaire</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
-                  {selectedPrestation?.prixMainOeuvre ? "Prix main d'œuvre (€)" : "Taux horaire (€/h)"}
-                </label>
-                <Input
-                  type="number"
-                  defaultValue={
-                    selectedPrestation?.prixMainOeuvre || selectedPrestation?.tauxHoraire || 0
-                  }
-                  placeholder="Ex: 45"
-                  className="bg-white border-blue-300/50 text-gray-900"
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsPrestationDialogOpen(false)}
-                  className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={handleSauvegarderPrestation}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  {isCreatePrestation ? "Créer" : "Enregistrer"}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog Création/Modification Pièce */}
-        <Dialog open={isPieceDialogOpen} onOpenChange={setIsPieceDialogOpen}>
-          <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-gray-900">
-                {isCreatePiece ? "Nouvelle pièce" : "Modifier la pièce"}
-              </DialogTitle>
-              <DialogDescription className="text-gray-700/70">
-                {isCreatePiece
+        {/* Sheet Détail/Édition */}
+        <Sheet open={isDetailSheetOpen} onOpenChange={setIsDetailSheetOpen}>
+          <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-white border-blue-200/50 text-gray-900">
+            <SheetHeader>
+              <SheetTitle className="text-gray-900">
+                {activeTab === "prestations"
+                  ? isCreating
+                    ? "Nouvelle prestation"
+                    : "Modifier la prestation"
+                  : isCreating
+                  ? "Nouvelle pièce"
+                  : "Modifier la pièce"}
+              </SheetTitle>
+              <SheetDescription className="text-gray-700/70">
+                {activeTab === "prestations"
+                  ? isCreating
+                    ? "Ajoutez une nouvelle prestation au catalogue"
+                    : "Modifiez les informations de la prestation"
+                  : isCreating
                   ? "Ajoutez une nouvelle pièce au catalogue"
                   : "Modifiez les informations de la pièce"}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Libellé</label>
-                <Input
-                  defaultValue={selectedPiece?.libelle || ""}
-                  placeholder="Ex: Filtre à huile"
-                  className="bg-white border-blue-300/50 text-gray-900"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-2 block">Référence</label>
-                <Input
-                  defaultValue={selectedPiece?.reference || ""}
-                  placeholder="Ex: FIL-123"
-                  className="bg-white border-blue-300/50 text-gray-900"
-                />
-              </div>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Prix d'achat (€)</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    defaultValue={selectedPiece?.prixAchat || 0}
-                    placeholder="Ex: 8.00"
-                    className="bg-white border-blue-300/50 text-gray-900"
-                    onChange={(e) => {
-                      const prixAchat = Number(e.target.value);
-                      const coefficient = selectedPiece?.coefficient || 2;
-                      // Mettre à jour le prix de vente calculé
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Coefficient</label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    defaultValue={selectedPiece?.coefficient || 2}
-                    placeholder="Ex: 2.5"
-                    className="bg-white border-blue-300/50 text-gray-900"
-                    onChange={(e) => {
-                      const coefficient = Number(e.target.value);
-                      const prixAchat = selectedPiece?.prixAchat || 0;
-                      // Mettre à jour le prix de vente calculé
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Prix de vente (€)</label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    defaultValue={selectedPiece?.prixVente || 0}
-                    placeholder="Calculé automatiquement"
-                    className="bg-white border-blue-300/50 text-gray-900"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Calcul: Prix achat × Coefficient = {selectedPiece
-                      ? calculerPrixVente(selectedPiece.prixAchat, selectedPiece.coefficient).toLocaleString()
-                      : 0}{" "}
-                    €
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 p-3 bg-blue-50/50 rounded-lg border border-blue-200/50">
-                <input
-                  type="checkbox"
-                  id="calculAuto"
-                  className="rounded border-blue-300 bg-white text-blue-600 focus:ring-blue-500"
-                  defaultChecked
-                />
-                <label htmlFor="calculAuto" className="text-sm text-gray-700 cursor-pointer">
-                  Calculer automatiquement le prix de vente (Prix achat × Coefficient)
-                </label>
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-6 mt-6">
+              {activeTab === "prestations" ? (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Libellé</label>
+                    <Input
+                      value={formLibelle}
+                      onChange={(e) => setFormLibelle(e.target.value)}
+                      placeholder="Ex: Vidange moteur"
+                      className="bg-white border-blue-300/50 text-gray-900"
+                    />
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">
+                        Temps estimé (heures)
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        value={formTempsEstime}
+                        onChange={(e) => setFormTempsEstime(Number(e.target.value))}
+                        placeholder="Ex: 1.5"
+                        className="bg-white border-blue-300/50 text-gray-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Catégorie</label>
+                      <Input
+                        value={formCategorie}
+                        onChange={(e) => setFormCategorie(e.target.value)}
+                        placeholder="Ex: Entretien"
+                        className="bg-white border-blue-300/50 text-gray-900"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      Type de tarification
+                    </label>
+                    <Select
+                      value={formTypeTarification}
+                      onValueChange={(v) => setFormTypeTarification(v as "fixe" | "horaire")}
+                    >
+                      <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                        <SelectItem value="fixe">Prix main d'œuvre fixe</SelectItem>
+                        <SelectItem value="horaire">Taux horaire</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">
+                      {formTypeTarification === "fixe" ? "Prix main d'œuvre (€)" : "Taux horaire (€/h)"}
+                    </label>
+                    <Input
+                      type="number"
+                      value={formTypeTarification === "fixe" ? formPrixMainOeuvre || "" : formTauxHoraire || ""}
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        if (formTypeTarification === "fixe") {
+                          setFormPrixMainOeuvre(value);
+                        } else {
+                          setFormTauxHoraire(value);
+                        }
+                      }}
+                      placeholder="Ex: 45"
+                      className="bg-white border-blue-300/50 text-gray-900"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Libellé</label>
+                    <Input
+                      value={formLibelle}
+                      onChange={(e) => setFormLibelle(e.target.value)}
+                      placeholder="Ex: Filtre à huile"
+                      className="bg-white border-blue-300/50 text-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-2 block">Référence</label>
+                    <Input
+                      value={formReference}
+                      onChange={(e) => setFormReference(e.target.value)}
+                      placeholder="Ex: FIL-123"
+                      className="bg-white border-blue-300/50 text-gray-900"
+                    />
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Prix d'achat (€)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formPrixAchat}
+                        onChange={(e) => {
+                          const prix = Number(e.target.value);
+                          setFormPrixAchat(prix);
+                          if (autoCalculatePrix) {
+                            setFormPrixVente(prix * formCoefficient);
+                          }
+                        }}
+                        placeholder="Ex: 8.00"
+                        className="bg-white border-blue-300/50 text-gray-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Coefficient</label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={formCoefficient}
+                        onChange={(e) => {
+                          const coeff = Number(e.target.value);
+                          setFormCoefficient(coeff);
+                          if (autoCalculatePrix) {
+                            setFormPrixVente(formPrixAchat * coeff);
+                          }
+                        }}
+                        placeholder="Ex: 2.5"
+                        className="bg-white border-blue-300/50 text-gray-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">Prix de vente (€)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formPrixVente}
+                        onChange={(e) => {
+                          setFormPrixVente(Number(e.target.value));
+                          setAutoCalculatePrix(false);
+                        }}
+                        placeholder="Calculé automatiquement"
+                        className="bg-white border-blue-300/50 text-gray-900"
+                        disabled={autoCalculatePrix}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        {autoCalculatePrix
+                          ? `Calcul: ${formPrixAchat} × ${formCoefficient} = ${formPrixVente.toLocaleString()} €`
+                          : "Saisie manuelle"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-3 bg-blue-50/50 rounded-lg border border-blue-200/50">
+                    <input
+                      type="checkbox"
+                      id="calculAuto"
+                      checked={autoCalculatePrix}
+                      onChange={(e) => {
+                        setAutoCalculatePrix(e.target.checked);
+                        if (e.target.checked) {
+                          setFormPrixVente(formPrixAchat * formCoefficient);
+                        }
+                      }}
+                      className="rounded border-blue-300 bg-white text-blue-600 focus:ring-blue-500"
+                    />
+                    <label htmlFor="calculAuto" className="text-sm text-gray-700 cursor-pointer">
+                      Calculer automatiquement le prix de vente (Prix achat × Coefficient)
+                    </label>
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-blue-200/50">
                 <Button
                   variant="outline"
-                  onClick={() => setIsPieceDialogOpen(false)}
+                  onClick={() => setIsDetailSheetOpen(false)}
                   className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
                 >
                   Annuler
                 </Button>
                 <Button
-                  onClick={handleSauvegarderPiece}
+                  onClick={handleSauvegarder}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
-                  {isCreatePiece ? "Créer" : "Enregistrer"}
+                  {isCreating ? "Créer" : "Enregistrer"}
                 </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </SheetContent>
+        </Sheet>
       </div>
     </DashboardLayout>
   );
 };
 
 export default Catalogue;
-

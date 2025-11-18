@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sheet";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { BlurFade } from "@/components/ui/blur-fade";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus,
   Search,
@@ -44,12 +45,19 @@ import {
   Download,
   Mail,
   Receipt,
-  Copy,
-  X,
-  Trash2,
-  MessageSquare,
+  CreditCard,
+  Bell,
 } from "lucide-react";
-import { format } from "date-fns";
+import {
+  BarChart,
+  Bar,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+} from "recharts";
+import { format, parseISO, startOfMonth, endOfMonth, subMonths, isBefore, addDays } from "date-fns";
 import { fr } from "date-fns/locale/fr";
 
 interface Facture {
@@ -111,17 +119,16 @@ interface Devis {
 
 const Factures = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [statutPaiementFilter, setStatutPaiementFilter] = useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
-  const [dateFilter, setDateFilter] = useState<string>("all");
+  const [periodeFilter, setPeriodeFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState<string>("toutes");
+  const [showGraphique, setShowGraphique] = useState(false);
   const [selectedFacture, setSelectedFacture] = useState<Facture | null>(null);
   const [isCreateSheetOpen, setIsCreateSheetOpen] = useState(false);
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [isNotificationDialogOpen, setIsNotificationDialogOpen] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
-  const [creerDepuisDevis, setCreerDepuisDevis] = useState(false);
-  const [devisSelectionne, setDevisSelectionne] = useState<Devis | null>(null);
 
   // État du formulaire de facture
   const [formClientId, setFormClientId] = useState<string>("");
@@ -138,12 +145,15 @@ const Factures = () => {
     { id: "1", nom: "Jean Dupont", type: "particulier" },
     { id: "2", nom: "Garage Auto Pro", type: "pro" },
     { id: "3", nom: "Marie Martin", type: "particulier" },
+    { id: "4", nom: "Pierre Bernard", type: "particulier" },
+    { id: "5", nom: "Sophie Leroy", type: "particulier" },
   ];
 
   const vehicules: Vehicule[] = [
     { id: "1", immatriculation: "AB-123-CD", marque: "Peugeot", modele: "308", clientId: "1" },
     { id: "2", immatriculation: "EF-456-GH", marque: "Renault", modele: "Clio", clientId: "1" },
     { id: "3", immatriculation: "IJ-789-KL", marque: "Citroën", modele: "C3", clientId: "2" },
+    { id: "4", immatriculation: "MN-012-OP", marque: "Volkswagen", modele: "Golf", clientId: "3" },
   ];
 
   const devisDisponibles: Devis[] = [
@@ -168,25 +178,26 @@ const Factures = () => {
     },
   ];
 
+  // Données de factures avec dates variées
+  const aujourdhui = new Date();
+  const ceMois = format(aujourdhui, "yyyy-MM");
+  const moisPrecedent = format(subMonths(aujourdhui, 1), "yyyy-MM");
+
   const factures: Facture[] = [
     {
       id: "1",
-      numero: "FAC-2024-045",
-      date: "2024-01-12",
-      dateEcheance: "2024-02-12",
+      numero: "FAC-2024-145",
+      date: `${ceMois}-25`,
+      dateEcheance: format(addDays(new Date(), -5), "yyyy-MM-dd"), // En retard
       clientId: "1",
       clientNom: "Jean Dupont",
       vehiculeId: "1",
       vehiculeImmat: "AB-123-CD",
-      devisId: "d1",
       montantHT: 2000,
       montantTTC: 2400,
       tva: 400,
       remise: 0,
-      statutPaiement: "payée",
-      datePaiement: "2024-01-15",
-      moyenPaiement: "CB",
-      montantPaye: 2400,
+      statutPaiement: "en_attente",
       lignes: [
         {
           id: "l1",
@@ -197,36 +208,25 @@ const Factures = () => {
           tauxTVA: 20,
           totalHT: 360,
         },
-        {
-          id: "l2",
-          type: "piece",
-          designation: "Courroie distribution",
-          reference: "CRB-456",
-          quantite: 1,
-          prixUnitaireHT: 90,
-          tauxTVA: 20,
-          totalHT: 90,
-        },
       ],
-      commentaires: "Garantie 2 ans sur la courroie",
     },
     {
       id: "2",
-      numero: "FAC-2024-038",
-      date: "2024-01-08",
-      dateEcheance: "2024-02-08",
+      numero: "FAC-2024-146",
+      date: `${ceMois}-22`,
+      dateEcheance: format(addDays(new Date(), 10), "yyyy-MM-dd"),
       clientId: "2",
       clientNom: "Garage Auto Pro",
       vehiculeId: "3",
       vehiculeImmat: "IJ-789-KL",
-      montantHT: 1900,
-      montantTTC: 2280,
-      tva: 380,
+      montantHT: 850,
+      montantTTC: 1020,
+      tva: 170,
       remise: 0,
       statutPaiement: "en_attente",
       lignes: [
         {
-          id: "l3",
+          id: "l2",
           type: "prestation",
           designation: "Vidange moteur",
           quantite: 1,
@@ -238,39 +238,181 @@ const Factures = () => {
     },
     {
       id: "3",
-      numero: "FAC-2024-032",
-      date: "2024-01-05",
-      dateEcheance: "2024-02-05",
+      numero: "FAC-2024-147",
+      date: `${ceMois}-20`,
+      dateEcheance: format(addDays(new Date(), -10), "yyyy-MM-dd"), // En retard
       clientId: "3",
       clientNom: "Marie Martin",
-      vehiculeId: "2",
-      vehiculeImmat: "EF-456-GH",
+      vehiculeId: "4",
+      vehiculeImmat: "MN-012-OP",
       montantHT: 1500,
       montantTTC: 1800,
       tva: 300,
       remise: 0,
-      statutPaiement: "partielle",
-      datePaiement: "2024-01-10",
+      statutPaiement: "en_attente",
+      lignes: [],
+    },
+    {
+      id: "4",
+      numero: "FAC-2024-148",
+      date: `${ceMois}-18`,
+      clientId: "4",
+      clientNom: "Pierre Bernard",
+      vehiculeId: "1",
+      vehiculeImmat: "AB-123-CD",
+      montantHT: 3200,
+      montantTTC: 3840,
+      tva: 640,
+      remise: 0,
+      statutPaiement: "payée",
+      datePaiement: `${ceMois}-19`,
+      moyenPaiement: "CB",
+      montantPaye: 3840,
+      lignes: [],
+    },
+    {
+      id: "5",
+      numero: "FAC-2024-149",
+      date: `${ceMois}-15`,
+      dateEcheance: format(addDays(new Date(), -15), "yyyy-MM-dd"), // En retard
+      clientId: "5",
+      clientNom: "Sophie Leroy",
+      vehiculeId: "2",
+      vehiculeImmat: "EF-456-GH",
+      montantHT: 1200,
+      montantTTC: 1440,
+      tva: 240,
+      remise: 0,
+      statutPaiement: "en_attente",
+      lignes: [],
+    },
+    {
+      id: "6",
+      numero: "FAC-2024-150",
+      date: `${ceMois}-12`,
+      clientId: "1",
+      clientNom: "Jean Dupont",
+      vehiculeId: "2",
+      vehiculeImmat: "EF-456-GH",
+      montantHT: 950,
+      montantTTC: 1140,
+      tva: 190,
+      remise: 0,
+      statutPaiement: "payée",
+      datePaiement: `${ceMois}-14`,
+      moyenPaiement: "chèque",
+      montantPaye: 1140,
+      lignes: [],
+    },
+    {
+      id: "7",
+      numero: "FAC-2024-138",
+      date: `${moisPrecedent}-28`,
+      dateEcheance: format(addDays(new Date(), -8), "yyyy-MM-dd"), // En retard
+      clientId: "2",
+      clientNom: "Garage Auto Pro",
+      vehiculeId: "3",
+      vehiculeImmat: "IJ-789-KL",
+      montantHT: 1900,
+      montantTTC: 2280,
+      tva: 380,
+      remise: 0,
+      statutPaiement: "en_attente",
+      lignes: [],
+    },
+    {
+      id: "8",
+      numero: "FAC-2024-139",
+      date: `${moisPrecedent}-25`,
+      clientId: "3",
+      clientNom: "Marie Martin",
+      vehiculeId: "4",
+      vehiculeImmat: "MN-012-OP",
+      montantHT: 2500,
+      montantTTC: 3000,
+      tva: 500,
+      remise: 0,
+      statutPaiement: "payée",
+      datePaiement: `${moisPrecedent}-27`,
       moyenPaiement: "virement",
-      montantPaye: 900,
+      montantPaye: 3000,
       lignes: [],
     },
   ];
 
-  const getFilteredFactures = () => {
+  // Vérifier si une facture est en retard
+  const isFactureEnRetard = (facture: Facture) => {
+    if (facture.statutPaiement === "payée") return false;
+    if (!facture.dateEcheance) return false;
+    return isBefore(parseISO(facture.dateEcheance), new Date());
+  };
+
+  // Calculer les résumés
+  const resumePaiements = useMemo(() => {
+    const periodeDates = periodeFilter === "all"
+      ? { debut: new Date(0), fin: new Date() }
+      : periodeFilter === "ce_mois"
+      ? { debut: startOfMonth(aujourdhui), fin: endOfMonth(aujourdhui) }
+      : { debut: startOfMonth(subMonths(aujourdhui, 1)), fin: endOfMonth(subMonths(aujourdhui, 1)) };
+
     let filtered = factures;
-
-    // Filtre par statut paiement
-    if (statutPaiementFilter !== "all") {
-      filtered = filtered.filter((f) => f.statutPaiement === statutPaiementFilter);
-    }
-
-    // Filtre par client
     if (clientFilter !== "all") {
       filtered = filtered.filter((f) => f.clientId === clientFilter);
     }
 
-    // Filtre par recherche
+    const facturesPeriode = filtered.filter((f) => {
+      const dateFacture = parseISO(f.date);
+      return !isBefore(dateFacture, periodeDates.debut) && !isBefore(periodeDates.fin, dateFacture);
+    });
+
+    const totalFacture = facturesPeriode.reduce((sum, f) => sum + f.montantTTC, 0);
+    const totalPaye = facturesPeriode
+      .filter((f) => f.statutPaiement === "payée")
+      .reduce((sum, f) => sum + f.montantTTC, 0);
+    const totalEnAttente = facturesPeriode
+      .filter((f) => f.statutPaiement !== "payée" && !isFactureEnRetard(f))
+      .reduce((sum, f) => sum + f.montantTTC, 0);
+    const totalEnRetard = facturesPeriode
+      .filter((f) => isFactureEnRetard(f))
+      .reduce((sum, f) => sum + f.montantTTC, 0);
+
+    return {
+      totalFacture,
+      totalPaye,
+      totalEnAttente,
+      totalEnRetard,
+    };
+  }, [factures, periodeFilter, clientFilter]);
+
+  // Données pour le graphique "Facturé vs Payé" par mois (6 derniers mois)
+  const graphiqueData = useMemo(() => {
+    const mois = [];
+    for (let i = 5; i >= 0; i--) {
+      const date = subMonths(aujourdhui, i);
+      const moisDebut = startOfMonth(date);
+      const moisFin = endOfMonth(date);
+      const facturesMois = factures.filter((f) => {
+        const dateFacture = parseISO(f.date);
+        return !isBefore(dateFacture, moisDebut) && !isBefore(moisFin, dateFacture);
+      });
+      const factureMois = facturesMois.reduce((sum, f) => sum + f.montantTTC, 0);
+      const payeMois = facturesMois
+        .filter((f) => f.statutPaiement === "payée")
+        .reduce((sum, f) => sum + f.montantTTC, 0);
+
+      mois.push({
+        mois: format(date, "MMM yyyy", { locale: fr }),
+        facturé: factureMois,
+        payé: payeMois,
+      });
+    }
+    return mois;
+  }, [factures]);
+
+  // Grouper les factures par statut
+  const facturesGroupes = useMemo(() => {
+    let filtered = factures;
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -281,10 +423,30 @@ const Factures = () => {
       );
     }
 
-    return filtered;
-  };
+    if (clientFilter !== "all") {
+      filtered = filtered.filter((f) => f.clientId === clientFilter);
+    }
 
-  const filteredFactures = getFilteredFactures();
+    const groupes = {
+      enRetard: filtered.filter((f) => isFactureEnRetard(f)),
+      enAttente: filtered.filter((f) => f.statutPaiement !== "payée" && !isFactureEnRetard(f)),
+      payees: filtered.filter((f) => f.statutPaiement === "payée"),
+    };
+
+    return groupes;
+  }, [factures, searchQuery, clientFilter]);
+
+  // Factures filtrées selon l'onglet actif
+  const facturesActives = useMemo(() => {
+    if (activeTab === "en_retard") {
+      return facturesGroupes.enRetard;
+    } else if (activeTab === "en_attente") {
+      return facturesGroupes.enAttente;
+    } else if (activeTab === "payees") {
+      return facturesGroupes.payees;
+    }
+    return [...facturesGroupes.enRetard, ...facturesGroupes.enAttente, ...facturesGroupes.payees];
+  }, [facturesGroupes, activeTab]);
 
   const vehiculesFiltres = formClientId
     ? vehicules.filter((v) => v.clientId === formClientId)
@@ -308,37 +470,15 @@ const Factures = () => {
 
   const totaux = calculerTotaux();
 
-  const handleNouvelleFacture = () => {
-    setCreerDepuisDevis(false);
-    setDevisSelectionne(null);
-    setFormClientId("");
-    setFormVehiculeId("");
-    setFormLignes([]);
-    setFormRemise(0);
-    setFormCommentaires("");
-    setFormStatutPaiement("en_attente");
-    setFormDatePaiement("");
-    setFormMoyenPaiement("");
-    setFormMontantPaye(0);
-    setIsCreateSheetOpen(true);
-  };
-
-  const handleCreerDepuisDevis = (devis: Devis) => {
-    setCreerDepuisDevis(true);
-    setDevisSelectionne(devis);
-    // Pré-remplir depuis le devis
-    const client = clients.find((c) => c.nom === devis.clientNom);
-    const vehicule = vehicules.find((v) => v.immatriculation === devis.vehiculeImmat);
-    if (client) setFormClientId(client.id);
-    if (vehicule) setFormVehiculeId(vehicule.id);
-    setFormLignes([...devis.lignes]);
-    setIsCreateSheetOpen(true);
+  const handleMarquerCommePayee = (factureId: string) => {
+    // Logique pour marquer comme payée
+    console.log("Marquer facture comme payée", factureId);
   };
 
   const handleNotifierVehiculePret = (facture: Facture) => {
     setSelectedFacture(facture);
     setNotificationMessage(
-      `Bonjour,\n\nVotre véhicule ${facture.vehiculeImmat} est prêt à être récupéré.\n\nVous pouvez venir le récupérer aux horaires d'ouverture du garage.\n\nCordialement,`
+      `Bonjour,\n\nVotre véhicule ${facture.vehiculeImmat} est prêt à être récupéré.\n\nCordialement,`
     );
     setIsNotificationDialogOpen(true);
   };
@@ -350,34 +490,29 @@ const Factures = () => {
         message: notificationMessage,
       });
       setIsNotificationDialogOpen(false);
+      setSelectedFacture(null);
       setNotificationMessage("");
     }
   };
 
-  const handleSauvegarder = () => {
-    console.log("Sauvegarder facture", {
-      formClientId,
-      formVehiculeId,
-      formLignes,
-      totaux,
-      formStatutPaiement,
-    });
-    setIsCreateSheetOpen(false);
-    setIsEditSheetOpen(false);
-  };
-
-  const getStatutPaiementBadge = (statut: string) => {
-    switch (statut) {
+  const getStatutPaiementBadge = (facture: Facture) => {
+    const isRetard = isFactureEnRetard(facture);
+    switch (facture.statutPaiement) {
       case "payée":
         return <Badge className="bg-green-500/20 text-green-600 border-green-500/30">Payée</Badge>;
       case "en_attente":
-        return <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">En attente</Badge>;
+        return isRetard ? (
+          <Badge className="bg-red-500/20 text-red-600 border-red-500/30">En retard</Badge>
+        ) : (
+          <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">En attente</Badge>
+        );
       case "partielle":
         return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Partielle</Badge>;
       default:
-        return <Badge variant="secondary">{statut}</Badge>;
+        return <Badge variant="secondary">{facture.statutPaiement}</Badge>;
     }
   };
+
 
   return (
     <DashboardLayout>
@@ -387,7 +522,7 @@ const Factures = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">
-                Gestion de la facturation
+                GESTION DE LA FACTURATION
               </p>
               <h1 className="mb-2 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900">
                 Liste des{" "}
@@ -397,222 +532,372 @@ const Factures = () => {
               </h1>
               <p className="text-sm text-gray-600">Gérer la facturation simple liée aux devis</p>
             </div>
-            <div className="flex gap-3">
-              <Button
-                onClick={handleNouvelleFacture}
-                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Nouvelle facture
-              </Button>
-            </div>
+            <Button
+              onClick={() => setIsCreateSheetOpen(true)}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white border-0"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Nouvelle facture
+            </Button>
           </div>
         </BlurFade>
 
-        {/* Recherche et filtres */}
+        {/* KPIs compacts */}
         <BlurFade inView delay={0.05}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card className="border border-blue-200/50 bg-white">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <Receipt className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="text-xs text-gray-600">Total facturé</p>
+                    <p className="text-lg font-bold text-gray-900">
+                      {resumePaiements.totalFacture.toLocaleString()} €
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border border-green-200/50 bg-white">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <div>
+                    <p className="text-xs text-gray-600">Payé</p>
+                    <p className="text-lg font-bold text-green-600">
+                      {resumePaiements.totalPaye.toLocaleString()} €
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border border-orange-200/50 bg-white">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-orange-600" />
+                  <div>
+                    <p className="text-xs text-gray-600">En attente</p>
+                    <p className="text-lg font-bold text-orange-600">
+                      {resumePaiements.totalEnAttente.toLocaleString()} €
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border border-red-200/50 bg-white">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-600" />
+                  <div>
+                    <p className="text-xs text-gray-600">En retard</p>
+                    <p className="text-lg font-bold text-red-600">
+                      {resumePaiements.totalEnRetard.toLocaleString()} €
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </BlurFade>
+
+        {/* Filtres et Onglets */}
+        <BlurFade inView delay={0.1}>
           <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
-            <CardContent className="p-4">
-              <div className="space-y-4">
-                {/* Recherche */}
-                <div className="relative">
+            <CardContent className="p-4 space-y-4">
+              {/* Filtres */}
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex-1 relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    placeholder="Rechercher (n° facture, client, immatriculation)..."
+                    placeholder="Rechercher..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
                   />
                 </div>
-
-                {/* Filtres */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Select value={statutPaiementFilter} onValueChange={setStatutPaiementFilter}>
-                    <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
-                      <SelectValue placeholder="Statut paiement" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                      <SelectItem value="all">Tous les statuts</SelectItem>
-                      <SelectItem value="payée">Payée</SelectItem>
-                      <SelectItem value="en_attente">En attente</SelectItem>
-                      <SelectItem value="partielle">Partielle</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={clientFilter} onValueChange={setClientFilter}>
-                    <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
-                      <SelectValue placeholder="Client" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                      <SelectItem value="all">Tous les clients</SelectItem>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.nom}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={dateFilter} onValueChange={setDateFilter}>
-                    <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
-                      <SelectValue placeholder="Période" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                      <SelectItem value="all">Toutes les périodes</SelectItem>
-                      <SelectItem value="mois">Ce mois</SelectItem>
-                      <SelectItem value="semaine">Cette semaine</SelectItem>
-                      <SelectItem value="trimestre">Ce trimestre</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Select value={clientFilter} onValueChange={setClientFilter}>
+                  <SelectTrigger className="w-full md:w-[180px] bg-white border-blue-300/50 text-gray-900">
+                    <SelectValue placeholder="Client" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                    <SelectItem value="all">Tous les clients</SelectItem>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowGraphique(!showGraphique)}
+                  className="border-blue-300/50 bg-white text-gray-700 hover:bg-blue-50"
+                >
+                  {showGraphique ? "Masquer" : "Afficher"} graphique
+                </Button>
               </div>
+
+              {/* Onglets */}
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="bg-white border-blue-200/50 w-full grid grid-cols-4">
+                  <TabsTrigger value="toutes" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
+                    Toutes ({facturesGroupes.enRetard.length + facturesGroupes.enAttente.length + facturesGroupes.payees.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="en_retard" className="data-[state=active]:bg-red-100 data-[state=active]:text-red-700">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    En retard ({facturesGroupes.enRetard.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="en_attente" className="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700">
+                    <Clock className="h-4 w-4 mr-2" />
+                    En attente ({facturesGroupes.enAttente.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="payees" className="data-[state=active]:bg-green-100 data-[state=active]:text-green-700">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Payées ({facturesGroupes.payees.length})
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </CardContent>
           </Card>
         </BlurFade>
 
-        {/* Liste des factures */}
-        <BlurFade inView delay={0.1}>
+        {/* Graphique (optionnel) */}
+        {showGraphique && (
+          <BlurFade inView delay={0.15}>
+            <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-gray-900">Facturé vs Payé par mois</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={graphiqueData}>
+                    <XAxis dataKey="mois" stroke="#64748b" />
+                    <YAxis stroke="#64748b" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "rgba(255,255,255,0.95)",
+                        border: "1px solid rgba(59,130,246,0.3)",
+                        borderRadius: "8px",
+                        color: "#1e293b",
+                      }}
+                      formatter={(value: number) => `€ ${value.toLocaleString()}`}
+                    />
+                    <Legend />
+                    <Bar dataKey="facturé" fill="#3b82f6" radius={[8, 8, 0, 0]} name="Facturé" />
+                    <Bar dataKey="payé" fill="#22c55e" radius={[8, 8, 0, 0]} name="Payé" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </BlurFade>
+        )}
+
+        {/* Table unique avec onglets */}
+        <BlurFade inView delay={0.2}>
           <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
-            <CardHeader>
+            <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-gray-900">Factures</CardTitle>
-                <Badge className="bg-blue-100 text-blue-700 border-blue-300">
-                  {filteredFactures.length} facture{filteredFactures.length > 1 ? "s" : ""}
-                </Badge>
+                <CardTitle className="text-gray-900">
+                  {activeTab === "en_retard" && (
+                    <span className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 text-red-600" />
+                      Factures en retard
+                    </span>
+                  )}
+                  {activeTab === "en_attente" && (
+                    <span className="flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-orange-600" />
+                      Factures en attente
+                    </span>
+                  )}
+                  {activeTab === "payees" && (
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                      Factures payées
+                    </span>
+                  )}
+                  {activeTab === "toutes" && "Toutes les factures"}
+                </CardTitle>
+                <div className="flex items-center gap-4">
+                  <Badge
+                    className={
+                      activeTab === "en_retard"
+                        ? "bg-red-500/20 text-red-600 border-red-500/30"
+                        : activeTab === "en_attente"
+                        ? "bg-orange-500/20 text-orange-600 border-orange-500/30"
+                        : activeTab === "payees"
+                        ? "bg-green-500/20 text-green-600 border-green-500/30"
+                        : "bg-blue-500/20 text-blue-600 border-blue-500/30"
+                    }
+                  >
+                    {facturesActives.length}
+                  </Badge>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {facturesActives.reduce((sum, f) => sum + f.montantTTC, 0).toLocaleString()} € TTC
+                  </p>
+                </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-blue-200/50">
+                    <tr
+                      className={`border-b ${
+                        activeTab === "en_retard"
+                          ? "border-red-200/50 bg-red-50/30"
+                          : activeTab === "en_attente"
+                          ? "border-orange-200/50 bg-orange-50/30"
+                          : activeTab === "payees"
+                          ? "border-green-200/50 bg-green-50/30"
+                          : "border-blue-200/50 bg-blue-50/30"
+                      }`}
+                    >
                       <th className="text-left py-3 px-4 font-semibold text-gray-700">N° facture</th>
                       <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
+                      {activeTab !== "payees" && (
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Échéance</th>
+                      )}
+                      {activeTab === "payees" && (
+                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Date paiement</th>
+                      )}
                       <th className="text-left py-3 px-4 font-semibold text-gray-700">Client</th>
                       <th className="text-left py-3 px-4 font-semibold text-gray-700">Véhicule</th>
                       <th className="text-left py-3 px-4 font-semibold text-gray-700">Montant</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Statut paiement</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700 w-32">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredFactures.map((facture) => (
-                      <tr
-                        key={facture.id}
-                        className="border-b border-blue-100/50 hover:bg-blue-50/50 transition-colors"
-                      >
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <Receipt className="h-4 w-4 text-blue-600" />
-                            <span className="font-semibold text-gray-900">{facture.numero}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-gray-700">
-                          {format(new Date(facture.date), "d MMM yyyy", { locale: fr })}
-                        </td>
-                        <td className="py-3 px-4 text-gray-700">{facture.clientNom}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1 text-gray-700">
-                            <Car className="h-4 w-4 text-blue-600" />
-                            <span>{facture.vehiculeImmat}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 font-semibold text-gray-900">
-                          {facture.montantTTC.toLocaleString()} €
-                        </td>
-                        <td className="py-3 px-4">{getStatutPaiementBadge(facture.statutPaiement)}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setSelectedFacture(facture);
-                                setIsPdfDialogOpen(true);
-                              }}
-                              className="h-8 w-8 p-0 hover:bg-blue-50"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setSelectedFacture(facture);
-                                setIsEditSheetOpen(true);
-                              }}
-                              className="h-8 w-8 p-0 hover:bg-blue-50"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </div>
+                    {facturesActives.length === 0 ? (
+                      <tr>
+                        <td colSpan={activeTab === "payees" ? 7 : 7} className="py-12 text-center text-gray-500">
+                          Aucune facture trouvée
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      facturesActives.map((facture) => {
+                        const isRetard = isFactureEnRetard(facture);
+                        return (
+                          <tr
+                            key={facture.id}
+                            className={`border-b ${
+                              isRetard
+                                ? "border-red-200/30 hover:bg-red-100/30 bg-red-50/20"
+                                : activeTab === "en_attente"
+                                ? "border-orange-100/50 hover:bg-orange-50/50"
+                                : activeTab === "payees"
+                                ? "border-green-100/50 hover:bg-green-50/50"
+                                : "border-blue-100/50 hover:bg-blue-50/50"
+                            } transition-colors`}
+                          >
+                            <td className="py-4 px-4">
+                              <span className="font-semibold text-gray-900">{facture.numero}</span>
+                            </td>
+                            <td className="py-4 px-4 text-gray-700">
+                              {format(parseISO(facture.date), "d MMM yyyy", { locale: fr })}
+                            </td>
+                            {activeTab !== "payees" && (
+                              <td className="py-4 px-4">
+                                {isRetard ? (
+                                  <span className="text-red-600 font-medium text-xs">
+                                    {facture.dateEcheance
+                                      ? format(parseISO(facture.dateEcheance), "d MMM yyyy", { locale: fr })
+                                      : "-"}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-700">
+                                    {facture.dateEcheance
+                                      ? format(parseISO(facture.dateEcheance), "d MMM yyyy", { locale: fr })
+                                      : "-"}
+                                  </span>
+                                )}
+                              </td>
+                            )}
+                            {activeTab === "payees" && (
+                              <td className="py-4 px-4 text-gray-700">
+                                {facture.datePaiement
+                                  ? format(parseISO(facture.datePaiement), "d MMM yyyy", { locale: fr })
+                                  : "-"}
+                              </td>
+                            )}
+                            <td className="py-4 px-4 text-gray-700">{facture.clientNom}</td>
+                            <td className="py-4 px-4 text-gray-700">{facture.vehiculeImmat}</td>
+                            <td className="py-4 px-4">
+                              <span className="font-medium text-gray-900">
+                                {facture.montantTTC.toLocaleString()} €
+                              </span>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setSelectedFacture(facture)}
+                                  className="h-8 w-8 p-0 hover:bg-blue-50"
+                                  title="Voir"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                                {activeTab !== "payees" && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleMarquerCommePayee(facture.id)}
+                                    className="h-8 w-8 p-0 hover:bg-green-50"
+                                    title="Marquer comme payée"
+                                  >
+                                    <CreditCard className="h-3.5 w-3.5 text-green-600" />
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleNotifierVehiculePret(facture)}
+                                  className="h-8 w-8 p-0 hover:bg-orange-50"
+                                  title="Notifier véhicule prêt"
+                                >
+                                  <Bell className="h-3.5 w-3.5 text-orange-600" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
-
-              {filteredFactures.length === 0 && (
-                <div className="text-center py-12">
-                  <Receipt className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                  <p className="text-gray-700/60">Aucune facture trouvée</p>
-                </div>
-              )}
             </CardContent>
           </Card>
         </BlurFade>
 
-        {/* Sheet Création/Édition Facture */}
-        <Sheet open={isCreateSheetOpen || isEditSheetOpen} onOpenChange={(open) => {
-          setIsCreateSheetOpen(open);
-          setIsEditSheetOpen(open);
-        }}>
-          <SheetContent side="right" className="w-full sm:max-w-4xl overflow-y-auto bg-white border-blue-200/50 text-gray-900">
+        {/* Sheet Création/Édition */}
+        <Sheet
+          open={isCreateSheetOpen || isEditSheetOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsCreateSheetOpen(false);
+              setIsEditSheetOpen(false);
+            }
+          }}
+        >
+          <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto bg-white border-blue-200/50 text-gray-900">
             <SheetHeader>
-              <SheetTitle className="text-2xl font-bold text-gray-900">
-                {isEditSheetOpen ? "Modifier la facture" : creerDepuisDevis ? "Créer facture depuis devis" : "Nouvelle facture"}
+              <SheetTitle className="text-gray-900">
+                {isCreateSheetOpen ? "Créer une facture" : "Modifier la facture"}
               </SheetTitle>
               <SheetDescription className="text-gray-700/70">
-                {creerDepuisDevis && devisSelectionne && (
-                  <span>Devis {devisSelectionne.numero} - Les lignes sont pré-remplies</span>
-                )}
-                {!creerDepuisDevis && "Créez une nouvelle facture"}
+                {isCreateSheetOpen
+                  ? "Créez une nouvelle facture pour un client"
+                  : "Modifiez les informations de la facture"}
               </SheetDescription>
             </SheetHeader>
 
             <div className="space-y-6 mt-6">
-              {/* Sélection devis si création depuis devis */}
-              {!isEditSheetOpen && !creerDepuisDevis && (
-                <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-200/50">
-                  <h3 className="font-semibold text-gray-900 mb-3">Créer depuis un devis</h3>
-                  <Select
-                    value={devisSelectionne?.id || ""}
-                    onValueChange={(value) => {
-                      const devis = devisDisponibles.find((d) => d.id === value);
-                      if (devis) {
-                        handleCreerDepuisDevis(devis);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
-                      <SelectValue placeholder="Sélectionner un devis accepté" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                      {devisDisponibles.map((devis) => (
-                        <SelectItem key={devis.id} value={devis.id}>
-                          {devis.numero} - {devis.clientNom} - {devis.montantTTC.toLocaleString()} € TTC
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
               {/* Bloc Client & Véhicule */}
               <div className="space-y-4 p-4 bg-blue-50/50 rounded-lg border border-blue-200/50">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <User className="h-5 w-5 text-blue-600" />
-                  Client & Véhicule
-                </h3>
+                <h3 className="font-semibold text-gray-900">Client & Véhicule</h3>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-2 block">Client</label>
@@ -647,346 +932,102 @@ const Factures = () => {
                 </div>
               </div>
 
-              {/* Lignes de facture */}
-              {formLignes.length > 0 && (
-                <div className="space-y-4 p-4 bg-blue-50/50 rounded-lg border border-blue-200/50">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-blue-600" />
-                    Lignes de la facture ({formLignes.length})
-                  </h3>
-                  <div className="space-y-2">
-                    {formLignes.map((ligne) => (
-                      <div
-                        key={ligne.id}
-                        className="p-3 border border-blue-200/50 rounded-lg bg-white"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{ligne.designation}</p>
-                            {ligne.reference && (
-                              <p className="text-xs text-gray-600">Ref: {ligne.reference}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className="text-gray-700">Qté: {ligne.quantite}</span>
-                            <span className="text-gray-700">{ligne.prixUnitaireHT.toLocaleString()} € HT</span>
-                            <span className="font-semibold text-gray-900 min-w-[100px] text-right">
-                              {ligne.totalHT.toLocaleString()} € HT
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Bloc Récap & Totaux */}
+              {/* Bloc Totaux */}
               <div className="space-y-4 p-4 bg-blue-50/50 rounded-lg border border-blue-200/50">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Euro className="h-5 w-5 text-blue-600" />
-                  Récapitulatif & Totaux
-                </h3>
-                <div className="space-y-2 bg-white p-4 rounded-lg">
-                  <div className="flex justify-between text-sm text-gray-700">
-                    <span>Total HT</span>
-                    <span className="font-semibold">{totaux.totalHT.toLocaleString()} € HT</span>
+                <h3 className="font-semibold text-gray-900">Récap & Totaux</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-700">Total HT</span>
+                    <span className="font-semibold text-gray-900">{totaux.totalHT.toLocaleString()} €</span>
                   </div>
-                  {totaux.remiseMontant > 0 && (
-                    <div className="flex justify-between text-sm text-gray-700">
-                      <span>Remise ({formRemise}%)</span>
-                      <span className="font-semibold text-green-600">
-                        -{totaux.remiseMontant.toLocaleString()} €
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between text-sm text-gray-700">
-                    <span>Total HT (après remise)</span>
-                    <span className="font-semibold">{totaux.totalHTAvecRemise.toLocaleString()} € HT</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-700">TVA (20%)</span>
+                    <span className="font-semibold text-gray-900">{totaux.tva.toLocaleString()} €</span>
                   </div>
-                  <div className="flex justify-between text-sm text-gray-700">
-                    <span>TVA (20%)</span>
-                    <span className="font-semibold">{totaux.tva.toLocaleString()} €</span>
+                  <div className="flex justify-between text-lg font-bold border-t border-blue-200/50 pt-2">
+                    <span className="text-gray-900">Total TTC</span>
+                    <span className="text-gray-900">{totaux.totalTTC.toLocaleString()} €</span>
                   </div>
-                  <div className="flex justify-between text-lg font-bold text-gray-900 border-t border-blue-200/50 pt-2">
-                    <span>Total TTC</span>
-                    <span>{totaux.totalTTC.toLocaleString()} € TTC</span>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 items-center">
-                  <Input
-                    type="number"
-                    value={formRemise}
-                    onChange={(e) => setFormRemise(Number(e.target.value))}
-                    placeholder="Remise %"
-                    className="w-32 border-blue-300/50 text-gray-900 text-sm"
-                  />
-                  <span className="text-sm text-gray-600">% de remise</span>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    Commentaires
-                  </label>
-                  <Textarea
-                    value={formCommentaires}
-                    onChange={(e) => setFormCommentaires(e.target.value)}
-                    placeholder="Ajoutez des commentaires..."
-                    className="min-h-[80px] bg-white border-blue-300/50 text-gray-900"
-                  />
                 </div>
               </div>
 
               {/* Bloc Paiement */}
               <div className="space-y-4 p-4 bg-blue-50/50 rounded-lg border border-blue-200/50">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Euro className="h-5 w-5 text-blue-600" />
-                  Paiement
-                </h3>
-                <div className="grid md:grid-cols-2 gap-4">
+                <h3 className="font-semibold text-gray-900">Paiement</h3>
+                <div className="space-y-4">
                   <div>
                     <label className="text-sm font-medium text-gray-700 mb-2 block">Statut paiement</label>
                     <Select
                       value={formStatutPaiement}
-                      onValueChange={(v) => setFormStatutPaiement(v as typeof formStatutPaiement)}
+                      onValueChange={(v) => setFormStatutPaiement(v as Facture["statutPaiement"])}
                     >
                       <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                         <SelectItem value="en_attente">En attente</SelectItem>
-                        <SelectItem value="partielle">Partielle</SelectItem>
                         <SelectItem value="payée">Payée</SelectItem>
+                        <SelectItem value="partielle">Partielle</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Date de paiement</label>
-                    <Input
-                      type="date"
-                      value={formDatePaiement}
-                      onChange={(e) => setFormDatePaiement(e.target.value)}
-                      className="bg-white border-blue-300/50 text-gray-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-2 block">Moyen de paiement</label>
-                    <Select
-                      value={formMoyenPaiement}
-                      onValueChange={(v) => setFormMoyenPaiement(v as typeof formMoyenPaiement)}
-                    >
-                      <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
-                        <SelectValue placeholder="Sélectionner" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                        <SelectItem value="CB">Carte Bancaire</SelectItem>
-                        <SelectItem value="chèque">Chèque</SelectItem>
-                        <SelectItem value="virement">Virement</SelectItem>
-                        <SelectItem value="espèces">Espèces</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {formStatutPaiement === "partielle" && (
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-2 block">Montant payé</label>
-                      <Input
-                        type="number"
-                        value={formMontantPaye}
-                        onChange={(e) => setFormMontantPaye(Number(e.target.value))}
-                        placeholder="Montant payé"
-                        className="bg-white border-blue-300/50 text-gray-900"
-                      />
-                    </div>
+                  {formStatutPaiement !== "en_attente" && (
+                    <>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">Date de paiement</label>
+                        <Input
+                          type="date"
+                          value={formDatePaiement}
+                          onChange={(e) => setFormDatePaiement(e.target.value)}
+                          className="bg-white border-blue-300/50 text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-2 block">Moyen de paiement</label>
+                        <Select value={formMoyenPaiement} onValueChange={(v) => setFormMoyenPaiement(v as Facture["moyenPaiement"])}>
+                          <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
+                            <SelectValue placeholder="Sélectionner" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                            <SelectItem value="CB">Carte bancaire</SelectItem>
+                            <SelectItem value="chèque">Chèque</SelectItem>
+                            <SelectItem value="virement">Virement</SelectItem>
+                            <SelectItem value="espèces">Espèces</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3">
+              <div className="flex justify-end gap-3 pt-4 border-t border-blue-200/50">
                 <Button
-                  onClick={handleSauvegarder}
                   variant="outline"
+                  onClick={() => {
+                    setIsCreateSheetOpen(false);
+                    setIsEditSheetOpen(false);
+                  }}
                   className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
                 >
-                  <FileText className="mr-2 h-4 w-4" />
-                  Enregistrer
+                  Annuler
                 </Button>
                 <Button
-                  onClick={handleSauvegarder}
+                  onClick={() => {
+                    console.log("Sauvegarder facture", { formClientId, formVehiculeId, totaux });
+                    setIsCreateSheetOpen(false);
+                    setIsEditSheetOpen(false);
+                  }}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  <Send className="mr-2 h-4 w-4" />
-                  Envoyer par mail
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Export PDF
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  {isCreateSheetOpen ? "Créer" : "Enregistrer"}
                 </Button>
               </div>
             </div>
           </SheetContent>
         </Sheet>
-
-        {/* Dialog Détail Facture avec Notifier */}
-        <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
-          <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-gray-900 flex items-center justify-between">
-                <span>Facture {selectedFacture?.numero}</span>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      if (selectedFacture) {
-                        handleNotifierVehiculePret(selectedFacture);
-                      }
-                    }}
-                    className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
-                  >
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    Notifier véhicule prêt
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Télécharger PDF
-                  </Button>
-                </div>
-              </DialogTitle>
-            </DialogHeader>
-            {selectedFacture && (
-              <div className="space-y-6">
-                {/* En-tête avec logo */}
-                <div className="text-center p-6 border-b border-blue-200/50">
-                  <h2 className="text-2xl font-bold text-gray-900">SARL LS MECA</h2>
-                  <p className="text-sm text-gray-600">Solution de gestion pour garages</p>
-                  <p className="text-xs text-gray-500 mt-2">Mentions légales</p>
-                </div>
-
-                {/* Détails facture */}
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Client</h3>
-                    <p className="text-sm text-gray-700">{selectedFacture.clientNom}</p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Véhicule</h3>
-                    <p className="text-sm text-gray-700">{selectedFacture.vehiculeImmat}</p>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2">Date facture</h3>
-                    <p className="text-sm text-gray-700">
-                      {format(new Date(selectedFacture.date), "d MMM yyyy", { locale: fr })}
-                    </p>
-                  </div>
-                  {selectedFacture.dateEcheance && (
-                    <div>
-                      <h3 className="font-semibold text-gray-900 mb-2">Date d'échéance</h3>
-                      <p className="text-sm text-gray-700">
-                        {format(new Date(selectedFacture.dateEcheance), "d MMM yyyy", { locale: fr })}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Statut paiement */}
-                <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-200/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600 mb-1">Statut de paiement</p>
-                      <div className="flex items-center gap-3">
-                        {getStatutPaiementBadge(selectedFacture.statutPaiement)}
-                        {selectedFacture.statutPaiement === "partielle" && (
-                          <span className="text-sm text-gray-700">
-                            {selectedFacture.montantPaye?.toLocaleString()} € / {selectedFacture.montantTTC.toLocaleString()} €
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {selectedFacture.datePaiement && (
-                      <div className="text-right">
-                        <p className="text-xs text-gray-600">Date de paiement</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {format(new Date(selectedFacture.datePaiement), "d MMM yyyy", { locale: fr })}
-                        </p>
-                      </div>
-                    )}
-                    {selectedFacture.moyenPaiement && (
-                      <div className="text-right">
-                        <p className="text-xs text-gray-600">Moyen de paiement</p>
-                        <p className="text-sm font-semibold text-gray-900">{selectedFacture.moyenPaiement}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Lignes */}
-                <div>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-blue-200/50">
-                        <th className="text-left py-2 px-3 font-semibold text-gray-700">Désignation</th>
-                        <th className="text-right py-2 px-3 font-semibold text-gray-700">Qté</th>
-                        <th className="text-right py-2 px-3 font-semibold text-gray-700">P.U. HT</th>
-                        <th className="text-right py-2 px-3 font-semibold text-gray-700">Total HT</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedFacture.lignes.map((ligne) => (
-                        <tr key={ligne.id} className="border-b border-blue-100/50">
-                          <td className="py-2 px-3 text-gray-900">
-                            {ligne.designation}
-                            {ligne.reference && (
-                              <span className="text-xs text-gray-500 ml-2">({ligne.reference})</span>
-                            )}
-                          </td>
-                          <td className="py-2 px-3 text-right text-gray-700">{ligne.quantite}</td>
-                          <td className="py-2 px-3 text-right text-gray-700">
-                            {ligne.prixUnitaireHT.toLocaleString()} €
-                          </td>
-                          <td className="py-2 px-3 text-right font-semibold text-gray-900">
-                            {ligne.totalHT.toLocaleString()} €
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Totaux */}
-                <div className="space-y-2 bg-blue-50/50 p-4 rounded-lg">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-700">Total HT</span>
-                    <span className="font-semibold text-gray-900">{selectedFacture.montantHT.toLocaleString()} €</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-700">TVA (20%)</span>
-                    <span className="font-semibold text-gray-900">{selectedFacture.tva.toLocaleString()} €</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold border-t border-blue-200/50 pt-2">
-                    <span className="text-gray-900">Total TTC</span>
-                    <span className="text-gray-900">{selectedFacture.montantTTC.toLocaleString()} €</span>
-                  </div>
-                </div>
-
-                {selectedFacture.commentaires && (
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <h3 className="font-semibold text-gray-900 mb-2">Commentaires</h3>
-                    <p className="text-sm text-gray-700">{selectedFacture.commentaires}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
 
         {/* Dialog Notification */}
         <Dialog open={isNotificationDialogOpen} onOpenChange={setIsNotificationDialogOpen}>
@@ -994,7 +1035,7 @@ const Factures = () => {
             <DialogHeader>
               <DialogTitle className="text-gray-900">Notifier véhicule prêt</DialogTitle>
               <DialogDescription className="text-gray-700/70">
-                Envoyez un email au client pour l'informer que son véhicule est prêt
+                Envoyer un message au client pour l'informer que son véhicule est prêt
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -1003,17 +1044,14 @@ const Factures = () => {
                 <Textarea
                   value={notificationMessage}
                   onChange={(e) => setNotificationMessage(e.target.value)}
-                  className="min-h-[200px] bg-white border-blue-300/50 text-gray-900"
-                  placeholder="Votre message..."
+                  rows={6}
+                  className="bg-white border-blue-300/50 text-gray-900"
                 />
               </div>
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-3 pt-4">
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setIsNotificationDialogOpen(false);
-                    setNotificationMessage("");
-                  }}
+                  onClick={() => setIsNotificationDialogOpen(false)}
                   className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
                 >
                   Annuler
@@ -1029,10 +1067,58 @@ const Factures = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog Détail Facture */}
+        {selectedFacture && (
+          <Dialog open={!!selectedFacture} onOpenChange={() => setSelectedFacture(null)}>
+            <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-3xl">
+              <DialogHeader>
+                <DialogTitle className="text-gray-900">Détail de la facture {selectedFacture.numero}</DialogTitle>
+                <DialogDescription className="text-gray-700/70">
+                  Informations complètes de la facture
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Client</p>
+                    <p className="font-medium text-gray-900">{selectedFacture.clientNom}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Véhicule</p>
+                    <p className="font-medium text-gray-900">{selectedFacture.vehiculeImmat}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600 mb-1">Date</p>
+                    <p className="font-medium text-gray-900">
+                      {format(parseISO(selectedFacture.date), "d MMM yyyy", { locale: fr })}
+                    </p>
+                  </div>
+                  {selectedFacture.dateEcheance && (
+                    <div>
+                      <p className="text-sm text-gray-600 mb-1">Échéance</p>
+                      <p className="font-medium text-gray-900">
+                        {format(parseISO(selectedFacture.dateEcheance), "d MMM yyyy", { locale: fr })}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="pt-4 border-t border-blue-200/50">
+                  <div className="flex justify-between items-center">
+                    <p className="text-lg font-semibold text-gray-900">Total TTC</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {selectedFacture.montantTTC.toLocaleString()} €
+                    </p>
+                  </div>
+                  {getStatutPaiementBadge(selectedFacture)}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </DashboardLayout>
   );
 };
 
 export default Factures;
-

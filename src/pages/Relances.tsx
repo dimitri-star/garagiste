@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,8 +31,9 @@ import {
   AlertCircle,
   XCircle,
   RefreshCw,
+  Euro,
 } from "lucide-react";
-import { format, addDays, parseISO, isBefore, isAfter } from "date-fns";
+import { format, addDays, parseISO, isBefore, isAfter, isSameDay, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale/fr";
 
 interface TacheRelance {
@@ -52,11 +53,11 @@ interface TacheRelance {
 const Relances = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [statutFilter, setStatutFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selectedTache, setSelectedTache] = useState<TacheRelance | null>(null);
   const [isReporterDialogOpen, setIsReporterDialogOpen] = useState(false);
   const [joursReport, setJoursReport] = useState<number>(3);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   const [tachesRelances, setTachesRelances] = useState<TacheRelance[]>([
     {
@@ -132,17 +133,54 @@ const Relances = () => {
     },
   ]);
 
-  const filteredTaches = tachesRelances.filter((tache) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      tache.numero.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      tache.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (tache.vehicule && tache.vehicule.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesStatut = statutFilter === "all" || tache.statut === statutFilter;
-    const matchesType = typeFilter === "all" || tache.type === typeFilter;
+  // Statistiques globales
+  const stats = useMemo(() => {
+    const aFaire = tachesRelances.filter((t) => t.statut === "à faire").length;
+    const enRetard = tachesRelances.filter(
+      (t) => t.statut === "à faire" && isBefore(parseISO(t.dateEcheance), new Date())
+    ).length;
+    const enCours = tachesRelances.filter((t) => t.statut === "en cours").length;
+    return { aFaire, enRetard, enCours };
+  }, [tachesRelances]);
 
-    return matchesSearch && matchesStatut && matchesType;
-  });
+  // Tâches filtrées
+  const filteredTaches = useMemo(() => {
+    return tachesRelances.filter((tache) => {
+      const matchesSearch =
+        searchQuery === "" ||
+        tache.numero.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tache.client.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (tache.vehicule && tache.vehicule.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesType = typeFilter === "all" || tache.type === typeFilter;
+      const matchesDate = !selectedDate || isSameDay(parseISO(tache.dateEcheance), parseISO(selectedDate));
+
+      return matchesSearch && matchesType && matchesDate;
+    });
+  }, [tachesRelances, searchQuery, typeFilter, selectedDate]);
+
+  // Tâches par statut pour Kanban
+  const tachesAFaire = useMemo(() => filteredTaches.filter((t) => t.statut === "à faire"), [filteredTaches]);
+  const tachesEnCours = useMemo(() => filteredTaches.filter((t) => t.statut === "en cours"), [filteredTaches]);
+  const tachesFaites = useMemo(() => filteredTaches.filter((t) => t.statut === "fait"), [filteredTaches]);
+
+  // Calendrier 2 semaines
+  const calendrier2Semaines = useMemo(() => {
+    const aujourdhui = new Date();
+    aujourdhui.setHours(0, 0, 0, 0);
+    const debutSemaine = startOfWeek(aujourdhui, { weekStartsOn: 1 });
+    const jours: Array<{ date: Date; count: number }> = [];
+
+    for (let i = 0; i < 14; i++) {
+      const date = addDays(debutSemaine, i);
+      const count = tachesRelances.filter((t) => {
+        const dateEcheance = parseISO(t.dateEcheance);
+        return isSameDay(dateEcheance, date) && t.statut !== "fait";
+      }).length;
+      jours.push({ date, count });
+    }
+
+    return jours;
+  }, [tachesRelances]);
 
   const getStatutBadge = (statut: TacheRelance["statut"]) => {
     switch (statut) {
@@ -228,188 +266,359 @@ const Relances = () => {
     }
   };
 
-  const tachesAFaire = filteredTaches.filter((t) => t.statut === "à faire").length;
-  const tachesEnRetard = filteredTaches.filter(
-    (t) => t.statut === "à faire" && isBefore(parseISO(t.dateEcheance), new Date())
-  ).length;
+  const handleMarquerCommeEnCours = (tacheId: string) => {
+    setTachesRelances((prev) =>
+      prev.map((t) => (t.id === tacheId ? { ...t, statut: "en cours" as const } : t))
+    );
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 text-gray-900">
-        {/* Header */}
+      <div className="h-full flex flex-col text-gray-900">
+        {/* Header compact avec stats */}
         <BlurFade inView>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">
-                Gestion des relances
-              </p>
-              <h1 className="mb-2 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900">
-                Tâches / Relances{" "}
-                <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-700 bg-clip-text text-transparent">
-                  Centralisées
-                </span>
-              </h1>
-              <p className="text-sm text-gray-600">Centralisez toutes les relances à faire</p>
+          <div className="mb-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">
+                  GESTION DES RELANCES
+                </p>
+                <h1 className="mb-2 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900">
+                  Tâches / Relances{" "}
+                  <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-700 bg-clip-text text-transparent">
+                    Centralisées
+                  </span>
+                </h1>
+              </div>
+              {/* Stats dans le header */}
+              <div className="flex flex-wrap gap-2">
+                <Badge className="bg-red-100 text-red-700 border-red-300 px-3 py-1.5 text-sm">
+                  <AlertCircle className="h-3.5 w-3.5 mr-1.5" />
+                  {stats.enRetard} en retard
+                </Badge>
+                <Badge className="bg-orange-100 text-orange-700 border-orange-300 px-3 py-1.5 text-sm">
+                  <Clock className="h-3.5 w-3.5 mr-1.5" />
+                  {stats.aFaire} à faire
+                </Badge>
+                <Badge className="bg-blue-100 text-blue-700 border-blue-300 px-3 py-1.5 text-sm">
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                  {stats.enCours} en cours
+                </Badge>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              {tachesEnRetard > 0 && (
-                <Badge className="bg-red-500/20 text-red-600 border-red-500/30">
-                  {tachesEnRetard} en retard
-                </Badge>
-              )}
-              {tachesAFaire > 0 && (
-                <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">
-                  {tachesAFaire} à faire
-                </Badge>
+
+            {/* Barre de recherche et filtres */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Rechercher (n° devis/facture, client, véhicule)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                />
+              </div>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-full sm:w-[200px] bg-white border-blue-300/50 text-gray-900">
+                  <SelectValue placeholder="Tous les types" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                  <SelectItem value="all">Tous les types</SelectItem>
+                  <SelectItem value="relance devis">Relance devis</SelectItem>
+                  <SelectItem value="relance facture">Relance facture</SelectItem>
+                </SelectContent>
+              </Select>
+              {selectedDate && (
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedDate(null)}
+                  className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Filtré: {format(parseISO(selectedDate), "d MMM", { locale: fr })}
+                </Button>
               )}
             </div>
           </div>
         </BlurFade>
 
-        {/* Filtres */}
-        <BlurFade inView delay={0.05}>
-          <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Rechercher (n° devis/facture, client, véhicule)..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
-                  />
-                </div>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-white border-blue-300/50 text-gray-900">
-                    <SelectValue placeholder="Tous les types" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                    <SelectItem value="all">Tous les types</SelectItem>
-                    <SelectItem value="relance devis">Relance devis</SelectItem>
-                    <SelectItem value="relance facture">Relance facture</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={statutFilter} onValueChange={setStatutFilter}>
-                  <SelectTrigger className="w-full md:w-[180px] bg-white border-blue-300/50 text-gray-900">
-                    <SelectValue placeholder="Tous les statuts" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                    <SelectItem value="all">Tous les statuts</SelectItem>
-                    <SelectItem value="à faire">À faire</SelectItem>
-                    <SelectItem value="en cours">En cours</SelectItem>
-                    <SelectItem value="fait">Fait</SelectItem>
-                    <SelectItem value="reporté">Reporté</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-        </BlurFade>
+        {/* Layout principal en 2 colonnes */}
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 min-h-0">
+          {/* Colonne gauche - Kanban (3 colonnes) */}
+          <div className="lg:col-span-3 flex flex-col gap-4 min-h-0">
+            <BlurFade inView delay={0.05}>
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
 
-        {/* Liste des tâches */}
-        <BlurFade inView delay={0.1}>
-          <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-gray-900">Liste des tâches de relance</CardTitle>
-                <Badge className="bg-blue-100 text-blue-700 border-blue-300">
-                  {filteredTaches.length} tâche{filteredTaches.length > 1 ? "s" : ""}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-blue-200/50 bg-blue-50/50">
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Type</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">N° Devis/Facture</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Client</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Véhicule</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Date d'échéance</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Montant</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Statut</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredTaches.map((tache) => (
-                      <tr
+                {/* Colonne À faire */}
+                <Card className="border border-red-200/50 bg-red-50/10 text-gray-900 flex flex-col min-h-0 shadow-sm">
+                  <CardHeader className="pb-3 bg-red-50/30 border-b border-red-200/50">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-600" />
+                        À faire
+                      </CardTitle>
+                      <Badge className="bg-red-500/20 text-red-700 border-red-500/30 text-xs">
+                        {tachesAFaire.length}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 overflow-y-auto p-3 space-y-2.5">
+                    {tachesAFaire.map((tache) => {
+                      const isRetard = isBefore(parseISO(tache.dateEcheance), new Date());
+                      return (
+                        <Card
+                          key={tache.id}
+                          className={`border bg-white hover:shadow-md transition-all cursor-pointer ${
+                            isRetard ? "border-red-300 bg-red-50/30" : "border-blue-200/50"
+                          }`}
+                          onClick={() => handleAccederAuDocument(tache)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between mb-2">
+                              {getTypeBadge(tache.type)}
+                              {isRetard && (
+                                <Badge className="bg-red-500/20 text-red-600 border-red-500/30 text-xs">
+                                  Retard
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="font-semibold text-sm text-gray-900 mb-1">{tache.numero}</p>
+                            <p className="text-xs text-gray-700 mb-1.5">{tache.client}</p>
+                            {tache.vehicule && (
+                              <p className="text-xs text-gray-500 mb-1.5">{tache.vehicule}</p>
+                            )}
+                            <div className="flex items-center justify-between mb-2.5">
+                              {tache.montant && (
+                                <div className="flex items-center gap-1 text-xs font-semibold text-gray-900">
+                                  <Euro className="h-3 w-3" />
+                                  {tache.montant.toLocaleString()} €
+                                </div>
+                              )}
+                              <div className={`flex items-center gap-1 text-xs ${getEcheanceColor(tache.dateEcheance)}`}>
+                                <Clock className="h-3 w-3" />
+                                {format(parseISO(tache.dateEcheance), "d MMM", { locale: fr })}
+                              </div>
+                            </div>
+                            <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="sm"
+                                onClick={() => handleMarquerCommeFait(tache.id)}
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs h-7"
+                              >
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Valider
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOuvrirReporter(tache)}
+                                className="flex-1 border-orange-300 text-orange-700 hover:bg-orange-50 text-xs h-7"
+                              >
+                                <Calendar className="h-3 w-3 mr-1" />
+                                +Jours
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                    {tachesAFaire.length === 0 && (
+                      <div className="text-center py-6 text-gray-400">
+                        <CheckCircle2 className="h-6 w-6 mx-auto mb-1.5 opacity-50" />
+                        <p className="text-xs">Aucune tâche</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Colonne En cours */}
+                <Card className="border border-blue-200/50 bg-blue-50/10 text-gray-900 flex flex-col min-h-0 shadow-sm">
+                  <CardHeader className="pb-3 bg-blue-50/30 border-b border-blue-200/50">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        <RefreshCw className="h-4 w-4 text-blue-600" />
+                        En cours
+                      </CardTitle>
+                      <Badge className="bg-blue-500/20 text-blue-700 border-blue-500/30 text-xs">
+                        {tachesEnCours.length}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 overflow-y-auto p-3 space-y-2.5">
+                    {tachesEnCours.map((tache) => (
+                      <Card
                         key={tache.id}
-                        className="border-b border-blue-100/50 hover:bg-blue-50/50 transition-colors"
+                        className="border border-blue-200/50 bg-white hover:shadow-md transition-all cursor-pointer"
+                        onClick={() => handleAccederAuDocument(tache)}
                       >
-                        <td className="py-3 px-4">{getTypeBadge(tache.type)}</td>
-                        <td className="py-3 px-4">
-                          <span className="font-medium text-gray-900">{tache.numero}</span>
-                        </td>
-                        <td className="py-3 px-4 text-gray-700">{tache.client}</td>
-                        <td className="py-3 px-4 text-gray-700">{tache.vehicule || "-"}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-gray-400" />
-                            <span className={getEcheanceColor(tache.dateEcheance)}>
-                              {format(parseISO(tache.dateEcheance), "d MMM yyyy", { locale: fr })}
-                            </span>
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            {getTypeBadge(tache.type)}
                           </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          {tache.montant ? (
-                            <span className="font-medium text-gray-900">{tache.montant.toLocaleString()} €</span>
-                          ) : (
-                            "-"
+                          <p className="font-semibold text-sm text-gray-900 mb-1">{tache.numero}</p>
+                          <p className="text-xs text-gray-700 mb-1.5">{tache.client}</p>
+                          {tache.vehicule && (
+                            <p className="text-xs text-gray-500 mb-1.5">{tache.vehicule}</p>
                           )}
-                        </td>
-                        <td className="py-3 px-4">{getStatutBadge(tache.statut)}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-between mb-2.5">
+                            {tache.montant && (
+                              <div className="flex items-center gap-1 text-xs font-semibold text-gray-900">
+                                <Euro className="h-3 w-3" />
+                                {tache.montant.toLocaleString()} €
+                              </div>
+                            )}
+                            <div className={`flex items-center gap-1 text-xs ${getEcheanceColor(tache.dateEcheance)}`}>
+                              <Clock className="h-3 w-3" />
+                              {format(parseISO(tache.dateEcheance), "d MMM", { locale: fr })}
+                            </div>
+                          </div>
+                          <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
                             <Button
                               size="sm"
-                              variant="ghost"
-                              onClick={() => handleAccederAuDocument(tache)}
-                              className="h-8 w-8 p-0 hover:bg-blue-50"
-                              title="Accéder au devis/facture"
+                              onClick={() => handleMarquerCommeFait(tache.id)}
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs h-7"
                             >
-                              <ArrowRight className="h-4 w-4" />
+                              <CheckCircle2 className="h-3 w-3 mr-1" />
+                              Valider
                             </Button>
-                            {tache.statut !== "fait" && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleMarquerCommeFait(tache.id)}
-                                  className="h-8 w-8 p-0 hover:bg-green-50"
-                                  title="Marquer comme fait"
-                                >
-                                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleOuvrirReporter(tache)}
-                                  className="h-8 w-8 p-0 hover:bg-orange-50"
-                                  title="Reporter"
-                                >
-                                  <Calendar className="h-4 w-4 text-orange-600" />
-                                </Button>
-                              </>
-                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleOuvrirReporter(tache)}
+                              className="flex-1 border-orange-300 text-orange-700 hover:bg-orange-50 text-xs h-7"
+                            >
+                              <Calendar className="h-3 w-3 mr-1" />
+                              +Jours
+                            </Button>
                           </div>
-                        </td>
-                      </tr>
+                        </CardContent>
+                      </Card>
                     ))}
-                  </tbody>
-                </table>
+                    {tachesEnCours.length === 0 && (
+                      <div className="text-center py-6 text-gray-400">
+                        <RefreshCw className="h-6 w-6 mx-auto mb-1.5 opacity-50" />
+                        <p className="text-xs">Aucune tâche</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Colonne Fait */}
+                <Card className="border border-green-200/50 bg-green-50/10 text-gray-900 flex flex-col min-h-0 shadow-sm">
+                  <CardHeader className="pb-3 bg-green-50/30 border-b border-green-200/50">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        Fait
+                      </CardTitle>
+                      <Badge className="bg-green-500/20 text-green-700 border-green-500/30 text-xs">
+                        {tachesFaites.length}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex-1 overflow-y-auto p-3 space-y-2.5">
+                    {tachesFaites.map((tache) => (
+                      <Card
+                        key={tache.id}
+                        className="border border-blue-200/50 bg-white hover:shadow-md transition-all cursor-pointer opacity-70"
+                        onClick={() => handleAccederAuDocument(tache)}
+                      >
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between mb-2">
+                            {getTypeBadge(tache.type)}
+                          </div>
+                          <p className="font-semibold text-sm text-gray-900 mb-1">{tache.numero}</p>
+                          <p className="text-xs text-gray-700 mb-1.5">{tache.client}</p>
+                          {tache.vehicule && (
+                            <p className="text-xs text-gray-500 mb-1.5">{tache.vehicule}</p>
+                          )}
+                          <div className="flex items-center justify-between">
+                            {tache.montant && (
+                              <div className="flex items-center gap-1 text-xs font-semibold text-gray-900">
+                                <Euro className="h-3 w-3" />
+                                {tache.montant.toLocaleString()} €
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                              <Clock className="h-3 w-3" />
+                              {format(parseISO(tache.dateEcheance), "d MMM", { locale: fr })}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                    {tachesFaites.length === 0 && (
+                      <div className="text-center py-6 text-gray-400">
+                        <CheckCircle2 className="h-6 w-6 mx-auto mb-1.5 opacity-50" />
+                        <p className="text-xs">Aucune tâche</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               </div>
-              {filteredTaches.length === 0 && (
-                <div className="text-center py-12">
-                  <AlertCircle className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                  <p className="text-gray-700/60">Aucune tâche de relance trouvée</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </BlurFade>
+            </BlurFade>
+          </div>
+
+          {/* Colonne droite - Calendrier et infos */}
+          <div className="lg:col-span-1 flex flex-col gap-4 min-h-0">
+            <BlurFade inView delay={0.1}>
+              <Card className="border border-blue-200/50 bg-white text-gray-900 shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-blue-600" />
+                    Agenda - 2 semaines
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {/* Jours de la semaine */}
+                    {["L", "M", "M", "J", "V", "S", "D"].map((jour) => (
+                      <div key={jour} className="text-center text-xs font-semibold text-gray-600 py-1">
+                        {jour}
+                      </div>
+                    ))}
+                    {/* Jours du calendrier */}
+                    {calendrier2Semaines.map((jour, index) => {
+                      const dateStr = format(jour.date, "yyyy-MM-dd");
+                      const isSelected = selectedDate === dateStr;
+                      const isToday = isSameDay(jour.date, new Date());
+                      const isRetard = isBefore(jour.date, new Date()) && jour.count > 0;
+
+                      return (
+                        <button
+                          key={index}
+                          onClick={() => setSelectedDate(isSelected ? null : dateStr)}
+                          className={`p-1.5 rounded border transition-colors text-center min-h-[45px] flex flex-col items-center justify-center ${
+                            isSelected
+                              ? "bg-blue-100 border-blue-400 text-blue-900 font-semibold"
+                              : isToday
+                              ? "bg-blue-50 border-blue-300 text-blue-900"
+                              : "bg-white border-blue-200/50 hover:bg-blue-50/50"
+                          } ${isRetard ? "border-red-300 bg-red-50/50" : ""}`}
+                        >
+                          <span className={`text-xs mb-0.5 ${isToday ? "font-bold" : ""}`}>
+                            {format(jour.date, "d")}
+                          </span>
+                          {jour.count > 0 && (
+                            <Badge
+                              className={`text-[10px] px-1 py-0 ${
+                                isRetard
+                                  ? "bg-red-500/20 text-red-700 border-red-500/30"
+                                  : "bg-orange-500/20 text-orange-700 border-orange-500/30"
+                              }`}
+                            >
+                              {jour.count}
+                            </Badge>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </BlurFade>
+          </div>
+        </div>
 
         {/* Dialog Reporter */}
         <Dialog open={isReporterDialogOpen} onOpenChange={setIsReporterDialogOpen}>

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -26,20 +27,22 @@ import {
   Car,
   User,
   FileText,
+  Receipt,
   Mail,
-  Edit,
   Calendar,
   Gauge,
   Wrench,
   MessageSquare,
+  Send,
+  Upload,
+  Link as LinkIcon,
+  X,
+  Clock,
   CheckCircle2,
   AlertCircle,
-  Link as LinkIcon,
-  Send,
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale/fr";
-import { Link } from "react-router-dom";
 
 interface Vehicule {
   id: string;
@@ -61,6 +64,7 @@ interface Vehicule {
   notesTechniques: NoteTechnique[];
   devis: DevisVehicule[];
   factures: FactureVehicule[];
+  documents: Document[];
   notifications: Notification[];
 }
 
@@ -87,6 +91,14 @@ interface FactureVehicule {
   statut: "à payer" | "payé" | "en retard";
 }
 
+interface Document {
+  id: string;
+  nom: string;
+  type: string;
+  date: string;
+  taille?: string;
+}
+
 interface Notification {
   id: string;
   date: string;
@@ -98,12 +110,9 @@ interface Notification {
 const Vehicules = () => {
   const [searchImmatriculation, setSearchImmatriculation] = useState("");
   const [marqueFilter, setMarqueFilter] = useState<string>("all");
-  const [modeleFilter, setModeleFilter] = useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [selectedVehicule, setSelectedVehicule] = useState<Vehicule | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isNotificationDialogOpen, setIsNotificationDialogOpen] = useState(false);
   const [notificationType, setNotificationType] = useState<"véhicule_prêt" | "document_manquant" | null>(null);
   const [notificationMessage, setNotificationMessage] = useState("");
@@ -165,6 +174,10 @@ const Vehicules = () => {
           statut: "payé",
         },
       ],
+      documents: [
+        { id: "doc1", nom: "Carte grise.pdf", type: "Carte grise", date: "2024-01-10" },
+        { id: "doc2", nom: "Contrôle technique.pdf", type: "CT", date: "2024-01-08" },
+      ],
       notifications: [
         {
           id: "not1",
@@ -203,6 +216,7 @@ const Vehicules = () => {
         },
       ],
       factures: [],
+      documents: [],
       notifications: [],
     },
     {
@@ -248,12 +262,14 @@ const Vehicules = () => {
           statut: "à payer",
         },
       ],
+      documents: [
+        { id: "doc3", nom: "Carte grise.pdf", type: "Carte grise", date: "2024-01-05" },
+      ],
       notifications: [],
     },
   ];
 
   const marques = Array.from(new Set(vehicules.map((v) => v.marque)));
-  const modeles = Array.from(new Set(vehicules.map((v) => v.modele)));
   const clients = Array.from(new Set(vehicules.map((v) => v.clientNom)));
 
   const filteredVehicules = vehicules.filter((vehicule) => {
@@ -261,33 +277,33 @@ const Vehicules = () => {
       searchImmatriculation === "" ||
       vehicule.immatriculation.toLowerCase().includes(searchImmatriculation.toLowerCase());
     const matchesMarque = marqueFilter === "all" || vehicule.marque === marqueFilter;
-    const matchesModele = modeleFilter === "all" || vehicule.modele === modeleFilter;
     const matchesClient = clientFilter === "all" || vehicule.clientNom === clientFilter;
 
-    return matchesImmatriculation && matchesMarque && matchesModele && matchesClient;
+    return matchesImmatriculation && matchesMarque && matchesClient;
   });
 
-  const handleOpenVehicule = (vehicule: Vehicule) => {
+  const handleSelectVehicule = (vehicule: Vehicule) => {
     setSelectedVehicule(vehicule);
-    setIsDialogOpen(true);
   };
 
-  const handleNotifierVehiculePret = (vehicule: Vehicule) => {
-    setSelectedVehicule(vehicule);
-    setNotificationType("véhicule_prêt");
-    setNotificationMessage(
-      `Bonjour,\n\nVotre véhicule ${vehicule.marque} ${vehicule.modele} (${vehicule.immatriculation}) est prêt à être récupéré.\n\nVous pouvez venir le récupérer aux horaires d'ouverture du garage.\n\nCordialement,`
-    );
-    setIsNotificationDialogOpen(true);
+  const handleNotifierVehiculePret = () => {
+    if (selectedVehicule) {
+      setNotificationType("véhicule_prêt");
+      setNotificationMessage(
+        `Bonjour,\n\nVotre véhicule ${selectedVehicule.marque} ${selectedVehicule.modele} (${selectedVehicule.immatriculation}) est prêt à être récupéré.\n\nVous pouvez venir le récupérer aux horaires d'ouverture du garage.\n\nCordialement,`
+      );
+      setIsNotificationDialogOpen(true);
+    }
   };
 
-  const handleDemanderDocument = (vehicule: Vehicule) => {
-    setSelectedVehicule(vehicule);
-    setNotificationType("document_manquant");
-    setNotificationMessage(
-      `Bonjour,\n\nPour finaliser le dossier de votre véhicule ${vehicule.marque} ${vehicule.modele} (${vehicule.immatriculation}), nous aurions besoin du document suivant :\n\n- [Précisez le document : carte grise, RIB, etc.]\n\nMerci de bien vouloir nous le transmettre.\n\nCordialement,`
-    );
-    setIsNotificationDialogOpen(true);
+  const handleDemanderDocument = () => {
+    if (selectedVehicule) {
+      setNotificationType("document_manquant");
+      setNotificationMessage(
+        `Bonjour,\n\nPour finaliser le dossier de votre véhicule ${selectedVehicule.marque} ${selectedVehicule.modele} (${selectedVehicule.immatriculation}), nous aurions besoin du document suivant :\n\n- [Précisez le document : carte grise, RIB, etc.]\n\nMerci de bien vouloir nous le transmettre.\n\nCordialement,`
+      );
+      setIsNotificationDialogOpen(true);
+    }
   };
 
   const handleEnvoyerNotification = () => {
@@ -299,18 +315,12 @@ const Vehicules = () => {
         message: notificationMessage,
       });
       setIsNotificationDialogOpen(false);
-      setNotificationMessage("");
       setNotificationType(null);
+      setNotificationMessage("");
     }
   };
 
-  const handleCreerDevis = (vehiculeId: string) => {
-    // Logique de création de devis
-    console.log("Créer devis pour véhicule", vehiculeId);
-    // Navigation vers création de devis avec pré-remplissage du véhicule
-  };
-
-  const getStatutBadge = (statut: string) => {
+  const getStatusBadge = (statut: string) => {
     switch (statut) {
       case "accepté":
         return <Badge className="bg-green-500/20 text-green-600 border-green-500/30">Accepté</Badge>;
@@ -335,15 +345,52 @@ const Vehicules = () => {
     }
   };
 
+  // Trier les événements (devis + factures) par date
+  const getHistorique = () => {
+    if (!selectedVehicule) return [];
+    const historique: Array<{
+      id: string;
+      type: "devis" | "facture";
+      numero: string;
+      date: string;
+      montant: number;
+      statut: string;
+    }> = [];
+
+    selectedVehicule.devis.forEach((devis) => {
+      historique.push({
+        id: devis.id,
+        type: "devis",
+        numero: devis.numero,
+        date: devis.date,
+        montant: devis.montant,
+        statut: devis.statut,
+      });
+    });
+
+    selectedVehicule.factures.forEach((facture) => {
+      historique.push({
+        id: facture.id,
+        type: "facture",
+        numero: facture.numero,
+        date: facture.date,
+        montant: facture.montant,
+        statut: facture.statut,
+      });
+    });
+
+    return historique.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
+
   return (
     <DashboardLayout>
-      <div className="space-y-6 text-gray-900">
+      <div className="h-[calc(100vh-4rem)] flex flex-col text-gray-900">
         {/* Header */}
         <BlurFade inView>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between p-6 border-b border-blue-200/50 bg-white">
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">
-                Historique des véhicules
+                HISTORIQUE DES VÉHICULES
               </p>
               <h1 className="mb-2 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900">
                 Gestion des{" "}
@@ -351,9 +398,7 @@ const Vehicules = () => {
                   Véhicules
                 </span>
               </h1>
-              <p className="text-sm text-gray-600">
-                Retrouvez tout l'historique d'un véhicule par immatriculation
-              </p>
+              <p className="text-sm text-gray-600">Retrouvez tout l'historique d'un véhicule par immatriculation</p>
             </div>
             <Button
               onClick={() => setIsCreateDialogOpen(true)}
@@ -365,431 +410,346 @@ const Vehicules = () => {
           </div>
         </BlurFade>
 
-        {/* Recherche et filtres */}
-        <BlurFade inView delay={0.05}>
-          <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
-            <CardContent className="p-4">
-              <div className="space-y-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Rechercher par immatriculation..."
-                    value={searchImmatriculation}
-                    onChange={(e) => setSearchImmatriculation(e.target.value)}
-                    className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
-                  />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Select value={marqueFilter} onValueChange={setMarqueFilter}>
-                    <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
-                      <SelectValue placeholder="Marque" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                      <SelectItem value="all">Toutes les marques</SelectItem>
-                      {marques.map((marque) => (
-                        <SelectItem key={marque} value={marque}>
-                          {marque}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={modeleFilter} onValueChange={setModeleFilter}>
-                    <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
-                      <SelectValue placeholder="Modèle" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                      <SelectItem value="all">Tous les modèles</SelectItem>
-                      {modeles.map((modele) => (
-                        <SelectItem key={modele} value={modele}>
-                          {modele}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={clientFilter} onValueChange={setClientFilter}>
-                    <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
-                      <SelectValue placeholder="Client" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-blue-200/50 text-gray-900">
-                      <SelectItem value="all">Tous les clients</SelectItem>
-                      {clients.map((client) => (
-                        <SelectItem key={client} value={client}>
-                          {client}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+        {/* Split View */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Colonne gauche - Liste des véhicules */}
+          <div className="w-1/3 border-r border-blue-200/50 bg-white flex flex-col">
+            {/* Recherche et filtres */}
+            <div className="p-4 border-b border-blue-200/50 space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Rechercher par immatriculation..."
+                  value={searchImmatriculation}
+                  onChange={(e) => setSearchImmatriculation(e.target.value)}
+                  className="pl-10 bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                />
               </div>
-            </CardContent>
-          </Card>
-        </BlurFade>
-
-        {/* Liste des véhicules */}
-        <BlurFade inView delay={0.1}>
-          <Card className="card-3d border border-blue-200/50 bg-white text-gray-900 backdrop-blur-xl group shadow-sm">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-gray-900">Véhicules</CardTitle>
-                <Badge className="bg-blue-100 text-blue-700 border-blue-300">
-                  {filteredVehicules.length} véhicule{filteredVehicules.length > 1 ? "s" : ""}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-blue-200/50">
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Immatriculation</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Marque</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Modèle</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Année</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Client</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Kilométrage</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Devis / Interventions</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredVehicules.map((vehicule) => (
-                      <tr
-                        key={vehicule.id}
-                        className="border-b border-blue-100/50 hover:bg-blue-50/50 transition-colors cursor-pointer"
-                        onClick={() => handleOpenVehicule(vehicule)}
-                      >
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <Car className="h-4 w-4 text-blue-600" />
-                            <span className="font-semibold text-gray-900">{vehicule.immatriculation}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-gray-700">{vehicule.marque}</td>
-                        <td className="py-3 px-4 text-gray-700">{vehicule.modele}</td>
-                        <td className="py-3 px-4 text-gray-700">{vehicule.annee}</td>
-                        <td className="py-3 px-4 text-gray-700">{vehicule.clientNom}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1 text-gray-700">
-                            <Gauge className="h-4 w-4 text-blue-600" />
-                            <span>{vehicule.kilometrage.toLocaleString()} km</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2 text-gray-700">
-                            <FileText className="h-4 w-4 text-blue-600" />
-                            <span>{vehicule.nbDevis}</span>
-                            <span className="text-gray-400">/</span>
-                            <Wrench className="h-4 w-4 text-blue-600" />
-                            <span>{vehicule.nbInterventions}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedVehicule(vehicule);
-                              setIsEditDialogOpen(true);
-                            }}
-                            className="h-8 w-8 p-0 hover:bg-blue-50"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </td>
-                      </tr>
+              <div className="flex flex-wrap gap-2">
+                <Select value={marqueFilter} onValueChange={setMarqueFilter}>
+                  <SelectTrigger className="h-8 text-xs bg-white border-blue-300/50 text-gray-900">
+                    <SelectValue placeholder="Marque" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                    <SelectItem value="all">Toutes les marques</SelectItem>
+                    {marques.map((marque) => (
+                      <SelectItem key={marque} value={marque}>
+                        {marque}
+                      </SelectItem>
                     ))}
-                  </tbody>
-                </table>
+                  </SelectContent>
+                </Select>
+                <Select value={clientFilter} onValueChange={setClientFilter}>
+                  <SelectTrigger className="h-8 text-xs bg-white border-blue-300/50 text-gray-900">
+                    <SelectValue placeholder="Client" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                    <SelectItem value="all">Tous les clients</SelectItem>
+                    {clients.map((client) => (
+                      <SelectItem key={client} value={client}>
+                        {client}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
 
+            {/* Liste des véhicules */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-2 space-y-2">
+                {filteredVehicules.map((vehicule) => (
+                  <Card
+                    key={vehicule.id}
+                    onClick={() => handleSelectVehicule(vehicule)}
+                    className={`cursor-pointer transition-all border ${
+                      selectedVehicule?.id === vehicule.id
+                        ? "border-blue-500 bg-blue-50/50 shadow-md"
+                        : "border-blue-200/50 bg-white hover:border-blue-300 hover:bg-blue-50/30"
+                    }`}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="bg-blue-100 p-2 rounded-lg">
+                          <Car className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-gray-900 truncate">{vehicule.immatriculation}</p>
+                          </div>
+                          <p className="text-sm text-gray-700 mb-2">
+                            {vehicule.marque} {vehicule.modele}
+                          </p>
+                          <div className="flex items-center gap-3 text-xs text-gray-600">
+                            <div className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              <span className="truncate">{vehicule.clientNom}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Gauge className="h-3 w-3" />
+                              <span>{vehicule.kilometrage.toLocaleString()} km</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
               {filteredVehicules.length === 0 && (
-                <div className="text-center py-12">
-                  <Car className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                  <Car className="h-12 w-12 mb-3 text-gray-400" />
                   <p className="text-gray-700/60">Aucun véhicule trouvé</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </BlurFade>
+            </div>
+          </div>
 
-        {/* Dialog Fiche véhicule */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-white border-blue-200/50 text-gray-900">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                <Car className="h-6 w-6 text-blue-600" />
-                {selectedVehicule?.marque} {selectedVehicule?.modele} - {selectedVehicule?.immatriculation}
-              </DialogTitle>
-              <DialogDescription className="text-gray-700/70">
-                Fiche complète du véhicule
-              </DialogDescription>
-            </DialogHeader>
-
-            {selectedVehicule && (
-              <div className="space-y-6">
-                {/* Infos techniques */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Car className="h-5 w-5 text-blue-600" />
-                    Informations techniques
-                  </h3>
-                  <div className="grid md:grid-cols-2 gap-4 p-4 bg-blue-50/50 rounded-lg border border-blue-200/50">
-                    <div>
-                      <p className="text-xs text-blue-600/60 mb-1">Immatriculation</p>
-                      <p className="text-sm font-semibold text-gray-900">{selectedVehicule.immatriculation}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-blue-600/60 mb-1">Marque / Modèle</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {selectedVehicule.marque} {selectedVehicule.modele}
+          {/* Colonne droite - Fiche dossier */}
+          <div className="flex-1 bg-gradient-to-br from-white via-blue-50/30 to-white overflow-hidden flex flex-col">
+            {selectedVehicule ? (
+              <>
+                {/* Header fiche */}
+                <div className="p-6 border-b border-blue-200/50 bg-white">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h2 className="text-2xl font-bold text-gray-900">{selectedVehicule.immatriculation}</h2>
+                        <Badge className="bg-blue-100 text-blue-700 border-blue-300">
+                          {selectedVehicule.marque}
+                        </Badge>
+                        <Badge className="bg-gray-100 text-gray-700 border-gray-300">
+                          {selectedVehicule.annee}
+                        </Badge>
+                        <Badge className="bg-orange-100 text-orange-700 border-orange-300">
+                          <Gauge className="mr-1 h-3 w-3" />
+                          {selectedVehicule.kilometrage.toLocaleString()} km
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {selectedVehicule.marque} {selectedVehicule.modele} • Client: {selectedVehicule.clientNom}
                       </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-blue-600/60 mb-1">Année</p>
-                      <p className="text-sm font-semibold text-gray-900">{selectedVehicule.annee}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-blue-600/60 mb-1">Kilométrage</p>
-                      <p className="text-sm font-semibold text-gray-900 flex items-center gap-1">
-                        <Gauge className="h-4 w-4 text-blue-600" />
-                        {selectedVehicule.kilometrage.toLocaleString()} km
-                      </p>
-                    </div>
-                    {selectedVehicule.infosTechniques.energie && (
-                      <div>
-                        <p className="text-xs text-blue-600/60 mb-1">Énergie</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {selectedVehicule.infosTechniques.energie}
-                        </p>
-                      </div>
-                    )}
-                    {selectedVehicule.infosTechniques.puissance && (
-                      <div>
-                        <p className="text-xs text-blue-600/60 mb-1">Puissance</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {selectedVehicule.infosTechniques.puissance}
-                        </p>
-                      </div>
-                    )}
-                    {selectedVehicule.infosTechniques.couleur && (
-                      <div>
-                        <p className="text-xs text-blue-600/60 mb-1">Couleur</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {selectedVehicule.infosTechniques.couleur}
-                        </p>
-                      </div>
-                    )}
-                    {selectedVehicule.infosTechniques.dateAchat && (
-                      <div>
-                        <p className="text-xs text-blue-600/60 mb-1">Date d'achat</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {format(new Date(selectedVehicule.infosTechniques.dateAchat), "d MMM yyyy", {
-                            locale: fr,
-                          })}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Client associé */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <User className="h-5 w-5 text-blue-600" />
-                    Client associé
-                  </h3>
-                  <div className="p-4 border border-blue-200/50 rounded-lg bg-white hover:bg-blue-50/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <User className="h-5 w-5 text-blue-600" />
-                        <div>
-                          <p className="font-semibold text-gray-900">{selectedVehicule.clientNom}</p>
-                          <p className="text-sm text-gray-600">Client ID: {selectedVehicule.clientId}</p>
-                        </div>
-                      </div>
-                      <Link to={`/clients`}>
-                        <Button size="sm" variant="outline" className="border-blue-500/30 text-blue-700 hover:bg-blue-50">
-                          <LinkIcon className="mr-2 h-4 w-4" />
-                          Voir la fiche client
-                        </Button>
-                      </Link>
                     </div>
                   </div>
                 </div>
 
-                {/* Historique des devis */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-blue-600" />
-                    Historique des devis ({selectedVehicule.devis.length})
-                  </h3>
-                  {selectedVehicule.devis.length === 0 ? (
-                    <div className="p-6 text-center bg-blue-50/50 rounded-lg border border-blue-200/50 border-dashed">
-                      <FileText className="h-8 w-8 text-blue-600/30 mx-auto mb-2" />
-                      <p className="text-sm text-gray-600">Aucun devis</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {selectedVehicule.devis.map((devis) => (
-                        <div
-                          key={devis.id}
-                          className="p-3 border border-blue-200/50 rounded-lg bg-white hover:bg-blue-50/50 transition-colors"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-semibold text-gray-900">{devis.numero}</p>
-                              <p className="text-sm text-gray-600">
-                                {format(new Date(devis.date), "d MMM yyyy", { locale: fr })} •{" "}
-                                {devis.montant.toLocaleString()} €
-                              </p>
-                            </div>
-                            {getStatutBadge(devis.statut)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* Onglets */}
+                <Tabs defaultValue="historique" className="flex-1 flex flex-col overflow-hidden">
+                  <div className="px-6 pt-4 border-b border-blue-200/50 bg-white">
+                    <TabsList className="bg-white">
+                      <TabsTrigger value="historique" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
+                        <Clock className="mr-2 h-4 w-4" />
+                        Historique
+                      </TabsTrigger>
+                      <TabsTrigger value="technique" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
+                        <Wrench className="mr-2 h-4 w-4" />
+                        Dossier technique
+                      </TabsTrigger>
+                      <TabsTrigger value="communication" className="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700">
+                        <MessageSquare className="mr-2 h-4 w-4" />
+                        Communication client
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
 
-                {/* Historique des factures */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-green-600" />
-                    Historique des factures ({selectedVehicule.factures.length})
-                  </h3>
-                  {selectedVehicule.factures.length === 0 ? (
-                    <div className="p-6 text-center bg-blue-50/50 rounded-lg border border-blue-200/50 border-dashed">
-                      <FileText className="h-8 w-8 text-blue-600/30 mx-auto mb-2" />
-                      <p className="text-sm text-gray-600">Aucune facture</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {selectedVehicule.factures.map((facture) => (
-                        <div
-                          key={facture.id}
-                          className="p-3 border border-blue-200/50 rounded-lg bg-white hover:bg-blue-50/50 transition-colors"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-semibold text-gray-900">{facture.numero}</p>
-                              <p className="text-sm text-gray-600">
-                                {format(new Date(facture.date), "d MMM yyyy", { locale: fr })} •{" "}
-                                {facture.montant.toLocaleString()} €
-                              </p>
-                            </div>
-                            {getStatutBadge(facture.statut)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Notes techniques */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <Wrench className="h-5 w-5 text-blue-600" />
-                    Notes techniques ({selectedVehicule.notesTechniques.length})
-                  </h3>
-                  {selectedVehicule.notesTechniques.length === 0 ? (
-                    <div className="p-6 text-center bg-blue-50/50 rounded-lg border border-blue-200/50 border-dashed">
-                      <Wrench className="h-8 w-8 text-blue-600/30 mx-auto mb-2" />
-                      <p className="text-sm text-gray-600">Aucune note technique</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {selectedVehicule.notesTechniques.map((note) => (
-                        <div
-                          key={note.id}
-                          className="p-3 border border-blue-200/50 rounded-lg bg-white hover:bg-blue-50/50 transition-colors"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="text-sm text-gray-900">{note.texte}</p>
-                              <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                                <Calendar className="h-3 w-3" />
-                                <span>{format(new Date(note.date), "d MMM yyyy", { locale: fr })}</span>
-                                <span>•</span>
-                                <span>{note.auteur}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Bloc Communication client */}
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5 text-blue-600" />
-                    Communication client
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="flex gap-3">
-                      <Button
-                        onClick={() => handleNotifierVehiculePret(selectedVehicule)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
-                      >
-                        <Mail className="mr-2 h-4 w-4" />
-                        Notifier véhicule prêt
-                      </Button>
-                      <Button
-                        onClick={() => handleDemanderDocument(selectedVehicule)}
-                        variant="outline"
-                        className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
-                      >
-                        <AlertCircle className="mr-2 h-4 w-4" />
-                        Demander un document
-                      </Button>
-                      <Button
-                        onClick={() => handleCreerDevis(selectedVehicule.id)}
-                        variant="outline"
-                        className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
-                      >
-                        <FileText className="mr-2 h-4 w-4" />
-                        Créer un devis
-                      </Button>
-                    </div>
-
-                    {/* Historique des notifications */}
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">
-                        Historique des notifications ({selectedVehicule.notifications.length})
-                      </h4>
-                      {selectedVehicule.notifications.length === 0 ? (
-                        <p className="text-sm text-gray-500">Aucune notification envoyée</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {selectedVehicule.notifications.map((notif) => (
-                            <div
-                              key={notif.id}
-                              className="p-3 border border-blue-200/50 rounded-lg bg-white text-sm"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-medium text-gray-900">
-                                    {notif.type === "véhicule_prêt" ? "Véhicule prêt" : "Document manquant"}
-                                  </p>
-                                  <p className="text-xs text-gray-600 mt-1">
-                                    {format(new Date(notif.date), "d MMM yyyy à HH:mm", { locale: fr })}
+                  {/* Contenu des onglets */}
+                  <div className="flex-1 overflow-y-auto p-6">
+                    <TabsContent value="historique" className="mt-0">
+                      <Card className="border border-blue-200/50 bg-white">
+                        <CardHeader>
+                          <CardTitle className="text-gray-900">Timeline des devis et factures</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {getHistorique().map((item) => (
+                              <div
+                                key={item.id}
+                                className="flex items-start gap-4 p-4 border border-blue-200/50 rounded-lg hover:bg-blue-50/50 transition-colors"
+                              >
+                                <div className={`p-2 rounded-lg ${
+                                  item.type === "devis" ? "bg-blue-100" : "bg-green-100"
+                                }`}>
+                                  {item.type === "devis" ? (
+                                    <FileText className="h-5 w-5 text-blue-600" />
+                                  ) : (
+                                    <Receipt className="h-5 w-5 text-green-600" />
+                                  )}
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-3 mb-1">
+                                    <p className="font-semibold text-gray-900">{item.numero}</p>
+                                    {getStatusBadge(item.statut)}
+                                    <span className="text-xs text-gray-500">
+                                      {format(new Date(item.date), "d MMM yyyy", { locale: fr })}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-700">
+                                    {item.type === "devis" ? "Devis" : "Facture"} • {item.montant.toLocaleString()} €
                                   </p>
                                 </div>
-                                {getStatutBadge(notif.statut)}
                               </div>
+                            ))}
+                            {getHistorique().length === 0 && (
+                              <div className="text-center py-12">
+                                <FileText className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                                <p className="text-gray-700/60">Aucun historique</p>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
+
+                    <TabsContent value="technique" className="mt-0">
+                      <div className="space-y-6">
+                        {/* Notes techniques */}
+                        <Card className="border border-blue-200/50 bg-white">
+                          <CardHeader>
+                            <CardTitle className="text-gray-900">Notes techniques</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-4">
+                              {selectedVehicule.notesTechniques.map((note) => (
+                                <div
+                                  key={note.id}
+                                  className="p-4 border border-blue-200/50 rounded-lg bg-blue-50/30"
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium text-gray-900">{note.auteur}</span>
+                                    <span className="text-xs text-gray-500">
+                                      {format(new Date(note.date), "d MMM yyyy", { locale: fr })}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-700">{note.texte}</p>
+                                </div>
+                              ))}
+                              {selectedVehicule.notesTechniques.length === 0 && (
+                                <p className="text-sm text-gray-700/60">Aucune note technique</p>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Documents */}
+                        <Card className="border border-blue-200/50 bg-white">
+                          <CardHeader>
+                            <CardTitle className="text-gray-900">Documents attachés</CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-2">
+                              {selectedVehicule.documents.map((doc) => (
+                                <div
+                                  key={doc.id}
+                                  className="flex items-center justify-between p-3 border border-blue-200/50 rounded-lg hover:bg-blue-50/50 transition-colors"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <FileText className="h-5 w-5 text-blue-600" />
+                                    <div>
+                                      <p className="text-sm font-medium text-gray-900">{doc.nom}</p>
+                                      <p className="text-xs text-gray-500">{doc.type}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-500">
+                                      {format(new Date(doc.date), "d MMM yyyy", { locale: fr })}
+                                    </span>
+                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                                      <LinkIcon className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                              {selectedVehicule.documents.length === 0 && (
+                                <p className="text-sm text-gray-700/60">Aucun document attaché</p>
+                              )}
+                            </div>
+                            <Button
+                              variant="outline"
+                              className="mt-4 w-full border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
+                            >
+                              <Upload className="mr-2 h-4 w-4" />
+                              Ajouter un document
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="communication" className="mt-0">
+                      <Card className="border border-blue-200/50 bg-white">
+                        <CardHeader>
+                          <CardTitle className="text-gray-900">Communication client</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                          {/* Boutons d'action */}
+                          <div className="flex gap-3">
+                            <Button
+                              onClick={handleNotifierVehiculePret}
+                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                              Notifier véhicule prêt
+                            </Button>
+                            <Button
+                              onClick={handleDemanderDocument}
+                              variant="outline"
+                              className="flex-1 border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              Demander un document
+                            </Button>
+                          </div>
+
+                          {/* Historique des notifications */}
+                          <div>
+                            <h3 className="text-sm font-semibold text-gray-900 mb-3">Historique des notifications</h3>
+                            <div className="space-y-2">
+                              {selectedVehicule.notifications.map((notif) => (
+                                <div
+                                  key={notif.id}
+                                  className="p-3 border border-blue-200/50 rounded-lg bg-blue-50/30"
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      {notif.type === "véhicule_prêt" ? (
+                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                      ) : (
+                                        <FileText className="h-4 w-4 text-blue-600" />
+                                      )}
+                                      <span className="text-xs font-medium text-gray-900">
+                                        {notif.type === "véhicule_prêt" ? "Véhicule prêt" : "Document manquant"}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {getStatusBadge(notif.statut)}
+                                      <span className="text-xs text-gray-500">
+                                        {format(new Date(notif.date), "d MMM yyyy", { locale: fr })}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <p className="text-xs text-gray-700">{notif.message}</p>
+                                </div>
+                              ))}
+                              {selectedVehicule.notifications.length === 0 && (
+                                <p className="text-sm text-gray-700/60">Aucune notification envoyée</p>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </TabsContent>
                   </div>
-                </div>
+                </Tabs>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                <Car className="h-16 w-16 mb-4 text-gray-400" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucun véhicule sélectionné</h3>
+                <p className="text-sm text-gray-600">Sélectionnez un véhicule dans la liste pour voir son dossier</p>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
+          </div>
+        </div>
 
         {/* Dialog Notification */}
         <Dialog open={isNotificationDialogOpen} onOpenChange={setIsNotificationDialogOpen}>
@@ -800,8 +760,8 @@ const Vehicules = () => {
               </DialogTitle>
               <DialogDescription className="text-gray-700/70">
                 {notificationType === "véhicule_prêt"
-                  ? "Envoyez un email au client pour l'informer que son véhicule est prêt"
-                  : "Envoyez un email au client pour demander un document manquant"}
+                  ? "Envoyer un message au client pour l'informer que son véhicule est prêt"
+                  : "Envoyer une demande de document au client"}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -810,18 +770,14 @@ const Vehicules = () => {
                 <Textarea
                   value={notificationMessage}
                   onChange={(e) => setNotificationMessage(e.target.value)}
-                  className="min-h-[200px] bg-white border-blue-300/50 text-gray-900"
-                  placeholder="Votre message..."
+                  rows={8}
+                  className="bg-white border-blue-300/50 text-gray-900"
                 />
               </div>
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-3 pt-4">
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setIsNotificationDialogOpen(false);
-                    setNotificationMessage("");
-                    setNotificationType(null);
-                  }}
+                  onClick={() => setIsNotificationDialogOpen(false)}
                   className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
                 >
                   Annuler
@@ -842,14 +798,42 @@ const Vehicules = () => {
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-gray-900">Créer un nouveau véhicule</DialogTitle>
-              <DialogDescription className="text-gray-700/70">
-                Ajoutez un nouveau véhicule à votre base
-              </DialogDescription>
+              <DialogTitle className="text-gray-900">Créer un véhicule</DialogTitle>
+              <DialogDescription className="text-gray-700/70">Ajouter un nouveau véhicule à la base</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-gray-600">Fonctionnalité en cours de développement...</p>
-              <div className="flex justify-end gap-3">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Immatriculation</label>
+                  <Input
+                    placeholder="AB-123-CD"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Marque</label>
+                  <Input
+                    placeholder="Peugeot"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Modèle</label>
+                  <Input
+                    placeholder="308"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Année</label>
+                  <Input
+                    type="number"
+                    placeholder="2019"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
                 <Button
                   variant="outline"
                   onClick={() => setIsCreateDialogOpen(false)}
@@ -867,44 +851,9 @@ const Vehicules = () => {
             </div>
           </DialogContent>
         </Dialog>
-
-        {/* Dialog Modifier véhicule */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-gray-900">Modifier le véhicule</DialogTitle>
-              <DialogDescription className="text-gray-700/70">
-                Modifiez les informations du véhicule
-              </DialogDescription>
-            </DialogHeader>
-            {selectedVehicule && (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600">
-                  Modification de {selectedVehicule.immatriculation} - Fonctionnalité en cours de développement...
-                </p>
-                <div className="flex justify-end gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsEditDialogOpen(false)}
-                    className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
-                  >
-                    Annuler
-                  </Button>
-                  <Button
-                    onClick={() => setIsEditDialogOpen(false)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    Enregistrer
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   );
 };
 
 export default Vehicules;
-
