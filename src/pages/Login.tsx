@@ -1,11 +1,13 @@
 import { useState, useEffect, type FC, type FormEvent } from "react";
-import { Eye, EyeOff, Mail, Lock, UserPlus, User } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, UserPlus, User, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { BlurFade } from "@/components/ui/blur-fade";
+import { toast } from "sonner";
 
 function ElegantShape({
   className,
@@ -67,47 +69,77 @@ function ElegantShape({
 
 const Login: FC = () => {
   const navigate = useNavigate();
+  const { signUp, signIn, user } = useAuth();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
-  const [storedFirstName, setStoredFirstName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
 
-  // Récupérer le prénom stocké au chargement et lors du changement de mode
+  // Rediriger si déjà connecté (ne vérifier que quand le loading est terminé)
   useEffect(() => {
-    const storedName = localStorage.getItem("userFirstName");
-    
-    if (storedName) {
-      setStoredFirstName(storedName);
+    if (!loading && user) {
+      navigate("/dashboard", { replace: true });
     }
-  }, [mode]);
+  }, [user, loading, navigate]);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
-    if (mode === "signup") {
-      // Mode inscription : stocker le prénom et l'email
-      if (firstName.trim()) {
-        localStorage.setItem("userFirstName", firstName.trim());
-        localStorage.setItem("userEmail", email);
-        setStoredFirstName(firstName.trim());
-      }
-    } else {
-      // Mode connexion : récupérer le prénom stocké
-      const storedName = localStorage.getItem("userFirstName");
-      if (storedName) {
-        setStoredFirstName(storedName);
-      }
-    }
-    
-    // Mode test : permettre la connexion/inscription sans validation réelle
-    // Simuler un login réussi puis rediriger vers le dashboard
-    navigate("/dashboard");
-  };
+    setLoading(true);
+    setError("");
 
-  // Utiliser le prénom stocké ou celui saisi
-  const displayFirstName = storedFirstName || firstName || "";
+    try {
+      if (mode === "signup") {
+        const { error, session } = await signUp(email, password, firstName);
+        
+        if (error) {
+          setError(error.message || "Une erreur est survenue lors de l'inscription");
+          toast.error("Erreur lors de l'inscription", {
+            description: error.message,
+          });
+        } else if (session) {
+          // Si une session est créée (email confirmation désactivée), connecter directement
+          toast.success("Inscription réussie", {
+            description: "Connexion en cours...",
+          });
+          navigate("/dashboard", { replace: true });
+        } else {
+          toast.success("Inscription réussie", {
+            description: "Vous pouvez maintenant vous connecter.",
+          });
+          // Rediriger vers la page de connexion après l'inscription
+          setMode("login");
+          setEmail(email); // Garder l'email rempli
+          setFirstName(""); // Vider le prénom
+          setPassword(""); // Vider le mot de passe
+        }
+      } else {
+        const { error } = await signIn(email, password);
+        
+        if (error) {
+          setError(error.message || "Email ou mot de passe incorrect");
+          toast.error("Erreur de connexion", {
+            description: error.message,
+          });
+        } else {
+          toast.success("Connexion réussie", {
+            description: "Redirection en cours...",
+          });
+          navigate("/dashboard", { replace: true });
+        }
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Une erreur inattendue est survenue";
+      setError(errorMessage);
+      toast.error("Erreur", {
+        description: errorMessage,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-white text-gray-900">
@@ -173,15 +205,7 @@ const Login: FC = () => {
             </BlurFade>
             <BlurFade inView delay={0.1}>
               <h1 className="mb-2 text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
-                {displayFirstName ? (
-                  <>
-                    Bienvenue{" "}
-                    <span className="bg-gradient-to-r from-blue-600 via-blue-500 to-blue-700 bg-clip-text text-transparent">
-                      {displayFirstName}
-                    </span>
-                    !
-                  </>
-                ) : mode === "signup" ? (
+                {mode === "signup" ? (
                   "Créer votre compte"
                 ) : (
                   "Bienvenue"
@@ -197,11 +221,24 @@ const Login: FC = () => {
             </BlurFade>
           </div>
 
+          {/* Message d'erreur */}
+          {error && (
+            <BlurFade inView>
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 flex items-center gap-2 text-sm text-red-700">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            </BlurFade>
+          )}
+
           {/* Tabs connexion / inscription */}
           <div className="mb-8 inline-flex w-full rounded-full bg-blue-50 p-1 text-xs font-medium text-gray-700">
             <button
               type="button"
-              onClick={() => setMode("login")}
+              onClick={() => {
+                setMode("login");
+                setError("");
+              }}
               className={`flex-1 rounded-full px-4 py-2 transition ${
                 mode === "login" ? "bg-blue-600 text-white shadow-md" : "hover:bg-blue-100"
               }`}
@@ -210,7 +247,10 @@ const Login: FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setMode("signup")}
+              onClick={() => {
+                setMode("signup");
+                setError("");
+              }}
               className={`flex-1 rounded-full px-4 py-2 transition ${
                 mode === "signup" ? "bg-blue-600 text-white shadow-md" : "hover:bg-blue-100"
               }`}
@@ -237,6 +277,7 @@ const Login: FC = () => {
                     onChange={(e) => setFirstName(e.target.value)}
                     className="h-11 w-full rounded-full border border-blue-300 bg-white pl-10 pr-4 text-sm text-gray-900 outline-none ring-blue-500/40 transition focus:border-blue-500 focus:ring-2 placeholder:text-gray-400"
                     placeholder="Votre prénom"
+                    disabled={loading}
                   />
                 </div>
               </div>
@@ -258,6 +299,7 @@ const Login: FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="h-11 w-full rounded-full border border-blue-300 bg-white pl-10 pr-4 text-sm text-gray-900 outline-none ring-blue-500/40 transition focus:border-blue-500 focus:ring-2 placeholder:text-gray-400"
                   placeholder="prenom.nom@entreprise.fr"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -278,11 +320,13 @@ const Login: FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-11 w-full rounded-full border border-blue-300 bg-white pl-10 pr-10 text-sm text-gray-900 outline-none ring-blue-500/40 transition focus:border-blue-500 focus:ring-2 placeholder:text-gray-400"
                   placeholder="Votre mot de passe"
+                  disabled={loading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   className="absolute inset-y-0 right-0 flex items-center pr-3 text-blue-500/70 hover:text-blue-600"
+                  disabled={loading}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -295,10 +339,11 @@ const Login: FC = () => {
                   <input
                     type="checkbox"
                     className="h-3.5 w-3.5 rounded border border-blue-300 bg-white text-blue-600 focus:ring-blue-500"
+                    disabled={loading}
                   />
                   <span>Se souvenir de moi</span>
                 </label>
-                <button type="button" className="text-[11px] font-medium text-blue-600 hover:text-blue-700">
+                <button type="button" className="text-[11px] font-medium text-blue-600 hover:text-blue-700" disabled={loading}>
                   Mot de passe oublié ?
                 </button>
               </div>
@@ -309,9 +354,14 @@ const Login: FC = () => {
                 type="submit"
                 shimmerColor="#dbeafe"
                 background="linear-gradient(135deg, rgba(37,99,235,1), rgba(59,130,246,1))"
-                className="w-full justify-center text-sm font-semibold uppercase tracking-[0.18em] text-white"
+                className="w-full justify-center text-sm font-semibold uppercase tracking-[0.18em] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
               >
-                {mode === "login" ? "Se connecter" : "Créer mon compte"}
+                {loading
+                  ? "Traitement en cours..."
+                  : mode === "login"
+                  ? "Se connecter"
+                  : "Créer mon compte"}
               </ShimmerButton>
             </div>
           </form>
@@ -331,6 +381,7 @@ const Login: FC = () => {
                 type="button"
                 className="inline-flex items-center gap-1 font-medium text-blue-600 hover:text-blue-700"
                 onClick={() => setMode("signup")}
+                disabled={loading}
               >
                 Créer un compte
                 <UserPlus className="h-3 w-3" />

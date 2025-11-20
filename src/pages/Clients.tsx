@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,9 +37,12 @@ import {
   Clock,
   CheckCircle2,
   Receipt,
+  Trash2,
 } from "lucide-react";
 import { format, subMonths, isBefore, isAfter, parseISO } from "date-fns";
 import { fr } from "date-fns/locale/fr";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 interface Client {
   id: string;
@@ -71,7 +74,8 @@ interface DevisClient {
   numero: string;
   date: string;
   montant: number;
-  statut: "brouillon" | "envoyé" | "accepté" | "refusé";
+  statut: "brouillon" | "généré" | "envoyé" | "accepté" | "refusé";
+  pdf_url?: string;
 }
 
 interface FactureClient {
@@ -89,162 +93,201 @@ const Clients = () => {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // États du formulaire de création/modification
+  const [formNom, setFormNom] = useState("");
+  const [formType, setFormType] = useState<"particulier" | "pro">("particulier");
+  const [formTelephone, setFormTelephone] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formAdresse, setFormAdresse] = useState("");
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
 
-  const clients: Client[] = [
-    {
-      id: "1",
-      nom: "Jean Dupont",
-      type: "particulier",
-      telephone: "06 12 34 56 78",
-      email: "jean.dupont@email.fr",
-      adresse: "123 Rue de la République, 34000 Montpellier",
-      nbVehicules: 2,
-      nbDevis: 5,
-      statut: "actif",
-      vehicules: [
-        {
-          id: "v1",
-          marque: "Peugeot",
-          modele: "308",
-          immatriculation: "AB-123-CD",
-          annee: 2019,
-        },
-        {
-          id: "v2",
-          marque: "Renault",
-          modele: "Clio",
-          immatriculation: "EF-456-GH",
-          annee: 2021,
-        },
-      ],
-      devis: [
-        {
-          id: "d1",
-          numero: "DEV-2024-101",
-          date: "2024-01-15",
-          montant: 2500,
-          statut: "accepté",
-        },
-        {
-          id: "d2",
-          numero: "DEV-2024-087",
-          date: "2024-01-10",
-          montant: 850,
-          statut: "envoyé",
-        },
-      ],
-      factures: [
-        {
-          id: "f1",
-          numero: "FAC-2024-045",
-          date: "2024-01-12",
-          montant: 2500,
-          statut: "payé",
-          type: "facture",
-        },
-        {
-          id: "d1",
-          numero: "DEV-2024-101",
-          date: "2024-01-15",
-          montant: 2500,
-          statut: "payé",
-          type: "devis",
-        },
-      ],
-      caTotal: 5000,
-      ca12Mois: 4800,
-    },
-    {
-      id: "2",
-      nom: "Garage Auto Pro",
-      type: "pro",
-      telephone: "04 67 89 01 23",
-      email: "contact@garage-auto-pro.fr",
-      adresse: "45 Avenue des Fleurs, 34000 Montpellier",
-      nbVehicules: 8,
-      nbDevis: 12,
-      statut: "actif",
-      vehicules: [
-        {
-          id: "v3",
-          marque: "Citroën",
-          modele: "C3",
-          immatriculation: "IJ-789-KL",
-          annee: 2020,
-        },
-      ],
-      devis: [
-        {
-          id: "d3",
-          numero: "DEV-2024-092",
-          date: "2024-01-09",
-          montant: 3100,
-          statut: "accepté",
-        },
-      ],
-      factures: [
-        {
-          id: "f2",
-          numero: "FAC-2024-038",
-          date: "2024-01-08",
-          montant: 3100,
-          statut: "à payer",
-          type: "facture",
-        },
-        {
-          id: "d3",
-          numero: "DEV-2024-092",
-          date: "2024-01-09",
-          montant: 3100,
-          statut: "payé",
-          type: "devis",
-        },
-      ],
-      caTotal: 6200,
-      ca12Mois: 5900,
-    },
-    {
-      id: "3",
-      nom: "Marie Martin",
-      type: "particulier",
-      telephone: "06 98 76 54 32",
-      email: "marie.martin@email.fr",
-      adresse: "78 Boulevard du Soleil, 34000 Montpellier",
-      nbVehicules: 1,
-      nbDevis: 3,
-      statut: "actif",
-      vehicules: [
-        {
-          id: "v4",
-          marque: "Volkswagen",
-          modele: "Golf",
-          immatriculation: "MN-012-OP",
-          annee: 2018,
-        },
-      ],
-      devis: [
-        {
-          id: "d4",
-          numero: "DEV-2024-098",
-          date: "2024-01-12",
-          montant: 1900,
-          statut: "envoyé",
-        },
-      ],
-      factures: [
-        {
-          id: "d4",
-          numero: "DEV-2024-098",
-          date: "2024-01-12",
-          montant: 1900,
-          statut: "payé",
-          type: "devis",
-        },
-      ],
-      caTotal: 1900,
-      ca12Mois: 1900,
-    },
-  ];
+  // Charger les clients depuis Supabase
+  const loadClients = async () => {
+    setLoading(true);
+    try {
+      // Charger les clients
+      const { data: clientsData, error: clientsError } = await supabase
+        .from('clients')
+        .select('*')
+        .order('nom');
+
+      if (clientsError) {
+        throw clientsError;
+      }
+
+      // Pour chaque client, charger les véhicules, devis et factures
+      const clientsWithRelations = await Promise.all(
+        (clientsData || []).map(async (c: any) => {
+          // Charger les véhicules
+          const { data: vehiculesData } = await supabase
+            .from('vehicules')
+            .select('*')
+            .eq('client_id', c.id);
+
+          // Charger les devis
+          const { data: devisData } = await supabase
+            .from('devis')
+            .select('id, numero, date, montant_ttc, statut, pdf_url')
+            .eq('client_id', c.id)
+            .order('date', { ascending: false });
+
+          // Charger les factures (si la table existe)
+          let facturesData = null;
+          try {
+            const { data } = await supabase
+              .from('factures')
+              .select('id, numero, date, montant_ttc, statut_paiement')
+              .eq('client_id', c.id)
+              .order('date', { ascending: false });
+            facturesData = data;
+          } catch (error) {
+            // Ignorer si la table n'existe pas
+            console.log('Table factures non disponible:', error);
+          }
+
+          // Calculer le CA (factures payées + devis acceptés)
+          const caTotal = ((facturesData || [])?.filter((f: any) => f.statut_paiement === 'payé')
+            .reduce((sum: number, f: any) => sum + Number(f.montant_ttc || 0), 0) || 0) +
+            ((devisData || [])?.filter((d: any) => d.statut === 'accepté')
+              .reduce((sum: number, d: any) => sum + Number(d.montant_ttc || 0), 0) || 0);
+
+          // CA des 12 derniers mois
+          const date12MoisAgo = subMonths(new Date(), 12);
+          const ca12Mois = ((facturesData || [])?.filter((f: any) => {
+            const dateFacture = new Date(f.date);
+            return dateFacture >= date12MoisAgo && f.statut_paiement === 'payé';
+          }).reduce((sum: number, f: any) => sum + Number(f.montant_ttc || 0), 0) || 0) +
+            ((devisData || [])?.filter((d: any) => {
+              const dateDevis = new Date(d.date);
+              return dateDevis >= date12MoisAgo && d.statut === 'accepté';
+            }).reduce((sum: number, d: any) => sum + Number(d.montant_ttc || 0), 0) || 0);
+
+          return {
+            id: c.id,
+            nom: c.nom,
+            type: c.type as "particulier" | "pro",
+            telephone: c.telephone || "",
+            email: c.email || "",
+            adresse: c.adresse || undefined,
+            nbVehicules: vehiculesData?.length || 0,
+            nbDevis: devisData?.length || 0,
+            statut: c.statut as "actif" | "archivé",
+            vehicules: (vehiculesData || []).map((v: any) => ({
+              id: v.id,
+              marque: v.marque,
+              modele: v.modele,
+              immatriculation: v.immatriculation,
+              annee: v.annee || undefined,
+            })),
+            devis: (devisData || []).map((d: any) => ({
+              id: d.id,
+              numero: d.numero,
+              date: d.date,
+              montant: Number(d.montant_ttc),
+              statut: d.statut,
+              pdf_url: d.pdf_url || undefined,
+            })),
+            factures: ((facturesData || []) || []).map((f: any) => ({
+              id: f.id,
+              numero: f.numero,
+              date: f.date,
+              montant: Number(f.montant_ttc),
+              statut: f.statut_paiement === 'payé' ? 'payé' as const : 
+                      f.statut_paiement === 'en_attente' ? 'à payer' as const : 'en retard' as const,
+              type: 'facture' as const,
+            })),
+            caTotal,
+            ca12Mois,
+          } as Client;
+        })
+      );
+
+      setClients(clientsWithRelations);
+      console.log('Clients chargés:', clientsWithRelations.length);
+    } catch (error: any) {
+      console.error('Erreur lors du chargement des clients:', error);
+      toast.error('Erreur', {
+        description: error.message || 'Impossible de charger les clients',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadClients();
+  }, []);
+
+  // Fonction pour créer un nouveau client
+  const handleCreateClient = async () => {
+    // Validation
+    if (!formNom.trim()) {
+      toast.error("Nom requis", {
+        description: "Veuillez saisir le nom du client",
+      });
+      return;
+    }
+
+    if (!formTelephone.trim()) {
+      toast.error("Téléphone requis", {
+        description: "Veuillez saisir le numéro de téléphone",
+      });
+      return;
+    }
+
+    if (!formEmail.trim()) {
+      toast.error("Email requis", {
+        description: "Veuillez saisir l'email",
+      });
+      return;
+    }
+
+    try {
+      const { data: newClient, error } = await supabase
+        .from('clients')
+        .insert([
+          {
+            nom: formNom.trim(),
+            type: formType,
+            telephone: formTelephone.trim(),
+            email: formEmail.trim(),
+            adresse: formAdresse.trim() || null,
+            statut: 'actif',
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Client créé", {
+        description: `Le client ${formNom} a été créé avec succès`,
+      });
+
+      // Réinitialiser le formulaire
+      setFormNom("");
+      setFormType("particulier");
+      setFormTelephone("");
+      setFormEmail("");
+      setFormAdresse("");
+
+      // Fermer la modal
+      setIsCreateDialogOpen(false);
+
+      // Recharger les clients
+      await loadClients();
+    } catch (error: any) {
+      console.error('Erreur lors de la création du client:', error);
+      toast.error("Erreur", {
+        description: error.message || "Impossible de créer le client",
+      });
+    }
+  };
 
   // Calcul des segments
   const segments = useMemo(() => {
@@ -308,9 +351,215 @@ const Clients = () => {
     setSelectedClient(client);
   };
 
-  const handleArchiver = (clientId: string) => {
-    // Logique d'archivage
-    console.log("Archiver client", clientId);
+  const handleSendDevis = async (devis: DevisClient, client: Client) => {
+    if (!devis.pdf_url) {
+      toast.error("PDF non disponible", {
+        description: "Le devis n'a pas encore été généré.",
+      });
+      return;
+    }
+
+    if (!client.email) {
+      toast.error("Email manquant", {
+        description: "L'email du client n'est pas renseigné.",
+      });
+      return;
+    }
+
+    try {
+      const MAKE_SEND_URL = import.meta.env.VITE_MAKE_SEND_URL || "";
+      
+      if (!MAKE_SEND_URL) {
+        toast.error("Configuration manquante", {
+          description: "L'URL d'envoi n'est pas configurée.",
+        });
+        return;
+      }
+
+      // Appeler le webhook d'envoi
+      const response = await fetch(MAKE_SEND_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          devis_id: devis.id,
+          email: client.email,
+          pdf_url: devis.pdf_url,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Mettre à jour le statut dans Supabase
+      await supabase
+        .from('devis')
+        .update({ statut: 'envoyé' })
+        .eq('id', devis.id);
+
+      toast.success("Devis envoyé", {
+        description: `Le devis a été envoyé à ${client.email}`,
+      });
+
+      // Mettre à jour le client localement
+      setSelectedClient({
+        ...client,
+        devis: client.devis.map(d => 
+          d.id === devis.id 
+            ? { ...d, statut: 'envoyé' as const }
+            : d
+        ),
+      });
+    } catch (error: any) {
+      toast.error("Erreur lors de l'envoi", {
+        description: error.message || "Une erreur est survenue.",
+      });
+    }
+  };
+
+  // Fonction pour ouvrir le formulaire de modification
+  const handleEditClient = (client: Client) => {
+    setEditingClientId(client.id);
+    setFormNom(client.nom);
+    setFormType(client.type);
+    setFormTelephone(client.telephone);
+    setFormEmail(client.email);
+    setFormAdresse(client.adresse || "");
+    setIsEditDialogOpen(true);
+  };
+
+  // Fonction pour modifier un client
+  const handleUpdateClient = async () => {
+    if (!editingClientId) return;
+
+    // Validation
+    if (!formNom.trim()) {
+      toast.error("Nom requis", {
+        description: "Veuillez saisir le nom du client",
+      });
+      return;
+    }
+
+    if (!formTelephone.trim()) {
+      toast.error("Téléphone requis", {
+        description: "Veuillez saisir le numéro de téléphone",
+      });
+      return;
+    }
+
+    if (!formEmail.trim()) {
+      toast.error("Email requis", {
+        description: "Veuillez saisir l'email",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .update({
+          nom: formNom.trim(),
+          type: formType,
+          telephone: formTelephone.trim(),
+          email: formEmail.trim(),
+          adresse: formAdresse.trim() || null,
+        })
+        .eq('id', editingClientId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Client modifié", {
+        description: `Le client ${formNom} a été modifié avec succès`,
+      });
+
+      // Réinitialiser le formulaire
+      setFormNom("");
+      setFormType("particulier");
+      setFormTelephone("");
+      setFormEmail("");
+      setFormAdresse("");
+      setEditingClientId(null);
+
+      // Fermer la modal
+      setIsEditDialogOpen(false);
+
+      // Recharger les clients
+      await loadClients();
+
+      // Mettre à jour le client sélectionné si c'est celui qui a été modifié
+      if (selectedClient?.id === editingClientId) {
+        await loadClients(); // Le client sélectionné sera mis à jour automatiquement
+      }
+    } catch (error: any) {
+      console.error('Erreur lors de la modification du client:', error);
+      toast.error("Erreur", {
+        description: error.message || "Impossible de modifier le client",
+      });
+    }
+  };
+
+  // Fonction pour supprimer un client
+  const handleDeleteClient = async (clientId: string, clientNom: string) => {
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', clientId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Mettre à jour la liste localement pour un feedback immédiat
+      setClients(prev => prev.filter(c => c.id !== clientId));
+      
+      toast.success("Client supprimé", {
+        description: `Le client ${clientNom} a été supprimé`,
+      });
+
+      // Si le client supprimé était sélectionné, désélectionner
+      if (selectedClient?.id === clientId) {
+        setSelectedClient(null);
+      }
+
+      // Recharger les clients
+      await loadClients();
+    } catch (error: any) {
+      console.error('Erreur lors de la suppression du client:', error);
+      toast.error("Erreur", {
+        description: error.message || "Impossible de supprimer le client. Il est peut-être lié à des devis ou véhicules.",
+      });
+    }
+  };
+
+  // Fonction pour archiver un client (changer le statut)
+  const handleArchiver = async (clientId: string) => {
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .update({ statut: 'archivé' })
+        .eq('id', clientId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Client archivé", {
+        description: "Le client a été archivé",
+      });
+
+      // Recharger les clients
+      await loadClients();
+    } catch (error: any) {
+      console.error('Erreur lors de l\'archivage du client:', error);
+      toast.error("Erreur", {
+        description: error.message || "Impossible d'archiver le client",
+      });
+    }
   };
 
   const handleCreerDevis = (clientId: string) => {
@@ -329,6 +578,8 @@ const Clients = () => {
     switch (statut) {
       case "accepté":
         return <Badge className="bg-green-500/20 text-green-600 border-green-500/30">Accepté</Badge>;
+      case "généré":
+        return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Généré</Badge>;
       case "envoyé":
         return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Envoyé</Badge>;
       case "brouillon":
@@ -538,61 +789,117 @@ const Clients = () => {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-y-auto">
-                  <div className="space-y-2">
-                    {filteredClients.map((client) => (
-                      <div
-                        key={client.id}
-                        onClick={() => handleSelectClient(client)}
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                          selectedClient?.id === client.id
-                            ? "bg-blue-100 border-blue-400"
-                            : "bg-white border-blue-200/50 hover:bg-blue-50/50"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            {client.type === "particulier" ? (
-                              <User className="h-4 w-4 text-blue-600" />
-                            ) : (
-                              <Building2 className="h-4 w-4 text-purple-600" />
-                            )}
-                            <span className="font-semibold text-sm text-gray-900">
-                              {client.nom}
-                            </span>
-                          </div>
-                          <Badge
-                            className={
-                              client.type === "particulier"
-                                ? "bg-blue-100 text-blue-700 border-blue-300 text-xs"
-                                : "bg-purple-100 text-purple-700 border-purple-300 text-xs"
-                            }
-                          >
-                            {client.type === "particulier" ? "Part." : "Pro"}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-gray-600">
-                          <div className="flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            <span>{client.telephone}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Car className="h-3 w-3" />
-                            <span>{client.nbVehicules}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <FileText className="h-3 w-3" />
-                            <span>{client.nbDevis}</span>
-                          </div>
-                        </div>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="text-center">
+                        <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent mx-auto"></div>
+                        <p className="text-sm text-gray-600">Chargement des clients...</p>
                       </div>
-                    ))}
-                    {filteredClients.length === 0 && (
-                      <div className="text-center py-8">
-                        <User className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                        <p className="text-sm text-gray-600">Aucun client trouvé</p>
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredClients.map((client) => {
+                      // Trouver un devis avec PDF mais pas encore envoyé
+                      const devisAEnvoyer = client.devis?.find(
+                        (d) => d.pdf_url && d.statut !== "envoyé" && d.statut !== "accepté" && d.statut !== "refusé"
+                      );
+
+                      return (
+                        <div
+                          key={client.id}
+                          onClick={() => handleSelectClient(client)}
+                          className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                            selectedClient?.id === client.id
+                              ? "bg-blue-100 border-blue-400"
+                              : "bg-white border-blue-200/50 hover:bg-blue-50/50"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 flex-1">
+                              {client.type === "particulier" ? (
+                                <User className="h-4 w-4 text-blue-600" />
+                              ) : (
+                                <Building2 className="h-4 w-4 text-purple-600" />
+                              )}
+                              <span className="font-semibold text-sm text-gray-900">
+                                {client.nom}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {devisAEnvoyer && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendDevis(devisAEnvoyer, client);
+                                  }}
+                                  className="h-7 w-7 p-0 hover:bg-blue-50 text-blue-600"
+                                  title="Envoyer le devis par email"
+                                >
+                                  <Mail className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditClient(client);
+                                }}
+                                className="h-7 w-7 p-0 hover:bg-blue-50 text-blue-600"
+                                title="Modifier le client"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClient(client.id, client.nom);
+                                }}
+                                className="h-7 w-7 p-0 hover:bg-red-50 text-red-600"
+                                title="Supprimer le client"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                              <Badge
+                                className={
+                                  client.type === "particulier"
+                                    ? "bg-blue-100 text-blue-700 border-blue-300 text-xs"
+                                    : "bg-purple-100 text-purple-700 border-purple-300 text-xs"
+                                }
+                              >
+                                {client.type === "particulier" ? "Part." : "Pro"}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-600">
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              <span>{client.telephone}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Car className="h-3 w-3" />
+                              <span>{client.nbVehicules}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <FileText className="h-3 w-3" />
+                              <span>{client.nbDevis}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                      {filteredClients.length === 0 && (
+                        <div className="text-center py-8">
+                          <User className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                          <p className="text-sm text-gray-600">Aucun client trouvé</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </BlurFade>
@@ -628,10 +935,20 @@ const Clients = () => {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => setIsEditDialogOpen(true)}
+                          onClick={() => handleEditClient(selectedClient)}
                           className="h-8 px-2 hover:bg-blue-50"
+                          title="Modifier le client"
                         >
                           <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteClient(selectedClient.id, selectedClient.nom)}
+                          className="h-8 px-2 hover:bg-red-50 text-red-600"
+                          title="Supprimer le client"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
@@ -695,6 +1012,48 @@ const Clients = () => {
                       </div>
                     </div>
 
+                    {/* Devis générés */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Devis générés
+                      </h3>
+                      <div className="space-y-2">
+                        {selectedClient.devis
+                          .filter(d => d.pdf_url)
+                          .map((devis) => (
+                            <div
+                              key={devis.id}
+                              className="flex items-center justify-between p-3 bg-white border border-blue-200/50 rounded-lg hover:bg-blue-50/50 transition-colors"
+                            >
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900">{devis.numero}</p>
+                                <p className="text-xs text-gray-600">
+                                  {format(parseISO(devis.date), "d MMM yyyy", { locale: fr })} • {devis.montant.toLocaleString()} €
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {getStatutBadge(devis.statut)}
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => window.open(devis.pdf_url, '_blank')}
+                                  className="h-8 w-8 p-0 hover:bg-blue-50 text-blue-600"
+                                  title="Ouvrir le PDF"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        {selectedClient.devis.filter(d => d.pdf_url).length === 0 && (
+                          <p className="text-xs text-gray-500 italic p-3 text-center bg-gray-50 rounded-lg border border-gray-200">
+                            Aucun devis généré
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Timeline */}
                     <div>
                       <h3 className="text-sm font-semibold text-gray-700 mb-3">Timeline</h3>
@@ -748,7 +1107,17 @@ const Clients = () => {
         </div>
 
         {/* Dialog Créer client */}
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open) {
+            // Réinitialiser le formulaire à la fermeture
+            setFormNom("");
+            setFormType("particulier");
+            setFormTelephone("");
+            setFormEmail("");
+            setFormAdresse("");
+          }
+        }}>
           <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-2xl">
             <DialogHeader>
               <DialogTitle className="text-gray-900">Créer un nouveau client</DialogTitle>
@@ -757,8 +1126,80 @@ const Clients = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-gray-600">Fonctionnalité en cours de développement...</p>
-              <div className="flex justify-end gap-3">
+              {/* Nom */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Nom <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={formNom}
+                  onChange={(e) => setFormNom(e.target.value)}
+                  placeholder="Nom du client"
+                  className="bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Type <span className="text-red-500">*</span>
+                </label>
+                <Select value={formType} onValueChange={(value) => setFormType(value as "particulier" | "pro")}>
+                  <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                    <SelectItem value="particulier">Particulier</SelectItem>
+                    <SelectItem value="pro">Professionnel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Téléphone */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Téléphone <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type="tel"
+                  value={formTelephone}
+                  onChange={(e) => setFormTelephone(e.target.value)}
+                  placeholder="06 12 34 56 78"
+                  className="bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type="email"
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
+                  placeholder="client@example.com"
+                  className="bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              {/* Adresse */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Adresse
+                </label>
+                <Input
+                  value={formAdresse}
+                  onChange={(e) => setFormAdresse(e.target.value)}
+                  placeholder="123 Rue de la République, 34000 Montpellier"
+                  className="bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
                 <Button
                   variant="outline"
                   onClick={() => setIsCreateDialogOpen(false)}
@@ -767,7 +1208,7 @@ const Clients = () => {
                   Annuler
                 </Button>
                 <Button
-                  onClick={() => setIsCreateDialogOpen(false)}
+                  onClick={handleCreateClient}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   Créer
@@ -778,7 +1219,18 @@ const Clients = () => {
         </Dialog>
 
         {/* Dialog Modifier client */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            // Réinitialiser le formulaire à la fermeture
+            setFormNom("");
+            setFormType("particulier");
+            setFormTelephone("");
+            setFormEmail("");
+            setFormAdresse("");
+            setEditingClientId(null);
+          }
+        }}>
           <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-2xl">
             <DialogHeader>
               <DialogTitle className="text-gray-900">Modifier le client</DialogTitle>
@@ -786,28 +1238,96 @@ const Clients = () => {
                 Modifiez les informations du client
               </DialogDescription>
             </DialogHeader>
-            {selectedClient && (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600">
-                  Modification de {selectedClient.nom} - Fonctionnalité en cours de développement...
-                </p>
-                <div className="flex justify-end gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsEditDialogOpen(false)}
-                    className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
-                  >
-                    Annuler
-                  </Button>
-                  <Button
-                    onClick={() => setIsEditDialogOpen(false)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    Enregistrer
-                  </Button>
-                </div>
+            <div className="space-y-4">
+              {/* Nom */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Nom <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={formNom}
+                  onChange={(e) => setFormNom(e.target.value)}
+                  placeholder="Nom du client"
+                  className="bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                  required
+                />
               </div>
-            )}
+
+              {/* Type */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Type <span className="text-red-500">*</span>
+                </label>
+                <Select value={formType} onValueChange={(value) => setFormType(value as "particulier" | "pro")}>
+                  <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                    <SelectItem value="particulier">Particulier</SelectItem>
+                    <SelectItem value="pro">Professionnel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Téléphone */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Téléphone <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type="tel"
+                  value={formTelephone}
+                  onChange={(e) => setFormTelephone(e.target.value)}
+                  placeholder="06 12 34 56 78"
+                  className="bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Email <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type="email"
+                  value={formEmail}
+                  onChange={(e) => setFormEmail(e.target.value)}
+                  placeholder="client@example.com"
+                  className="bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              {/* Adresse */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Adresse
+                </label>
+                <Input
+                  value={formAdresse}
+                  onChange={(e) => setFormAdresse(e.target.value)}
+                  placeholder="123 Rue de la République, 34000 Montpellier"
+                  className="bg-white border-blue-300/50 text-gray-900 placeholder:text-gray-400 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                  className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleUpdateClient}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Enregistrer
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

@@ -5,7 +5,9 @@ import { type FC } from "react";
 import { motion } from "framer-motion";
 import { Circle } from "lucide-react";
 import { ArrowRight, Bell, Clock, FileText, LayoutDashboard, ListChecks, Zap, BookOpen, Receipt, Settings } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 import { ShimmerButton } from "@/components/ui/shimmer-button";
 import { cn } from "@/lib/utils";
@@ -103,6 +105,28 @@ const GlowCard: FC<
 };
 
 const Landing: FC = () => {
+  const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  // Rediriger vers le dashboard si l'utilisateur est déjà connecté
+  useEffect(() => {
+    if (!loading && user) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [user, loading, navigate]);
+
+  // Afficher un loader pendant la vérification
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent mx-auto"></div>
+          <p className="text-sm text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-white text-gray-900">
       <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.05] via-transparent to-blue-700/[0.05] blur-3xl" />

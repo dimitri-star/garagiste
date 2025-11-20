@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,28 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale/fr";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  DragStartEvent,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Devis {
   id: string;
@@ -68,9 +90,10 @@ interface Devis {
   tva: number;
   remise: number;
   remiseType: "pourcent" | "montant";
-  statut: "brouillon" | "envoyé" | "accepté" | "refusé" | "à relancer";
+  statut: "brouillon" | "généré" | "envoyé" | "accepté" | "refusé" | "à relancer";
   lignes: LigneDevis[];
   commentaires?: string;
+  pdf_url?: string;
 }
 
 interface LigneDevis {
@@ -89,6 +112,8 @@ interface Client {
   id: string;
   nom: string;
   type: "particulier" | "pro";
+  email?: string;
+  telephone?: string;
 }
 
 interface Vehicule {
@@ -116,8 +141,147 @@ interface Piece {
   prixVente: number;
 }
 
+// Composant pour les colonnes droppables du Kanban
+function KanbanColumn({ 
+  id, 
+  children, 
+  title, 
+  count, 
+  total, 
+  headerClassName,
+  contentClassName,
+  borderColor
+}: { 
+  id: string;
+  children: ReactNode;
+  title: string;
+  count: number;
+  total: number;
+  headerClassName?: string;
+  contentClassName?: string;
+  borderColor?: string;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  const borderClass = borderColor || 'border-gray-200';
+
+  return (
+    <div className="flex flex-col">
+      <div className={`${headerClassName || 'bg-gray-100'} p-3 rounded-t-lg border ${borderClass}`}>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-semibold text-sm text-gray-900">{title}</h3>
+          <Badge className="bg-gray-500/20 text-gray-600 border-gray-500/30 text-xs">
+            {count}
+          </Badge>
+        </div>
+        <p className="text-xs text-gray-600 font-medium">
+          {total.toLocaleString()} €
+        </p>
+      </div>
+      <div 
+        ref={setNodeRef}
+        className={`flex-1 ${contentClassName || 'bg-gray-50/50'} border-x border-b ${borderClass} rounded-b-lg p-3 min-h-[400px] max-h-[600px] overflow-y-auto ${isOver ? 'bg-opacity-80 ring-2 ring-blue-400' : ''}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// Composant pour les cartes sortables du Kanban
+function SortableDevisCard({ devis, onEdit, onSend }: { 
+  devis: Devis; 
+  onEdit: (devis: Devis) => void;
+  onSend: (devisId: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: devis.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style} 
+      {...attributes} 
+      {...listeners}
+      data-id={devis.id}
+    >
+      <Card
+        className="border bg-white hover:shadow-md transition-all mb-3 cursor-move"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit(devis);
+        }}
+      >
+        <CardContent className="p-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-sm text-gray-900">{devis.numero}</p>
+            </div>
+            <div className="space-y-1 text-xs text-gray-600">
+              <div className="flex items-center gap-1">
+                <User className="h-3 w-3" />
+                <span className="truncate">{devis.clientNom}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Car className="h-3 w-3" />
+                <span>{devis.vehiculeImmat}</span>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-gray-200">
+              <p className="text-sm font-bold text-gray-900">
+                {devis.montantTTC.toLocaleString()} € TTC
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              {devis.pdf_url && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(devis.pdf_url, '_blank');
+                  }}
+                  className="h-7 px-2 text-xs hover:bg-blue-50 text-blue-600"
+                  title="Ouvrir le PDF"
+                >
+                  <FileText className="h-3 w-3" />
+                </Button>
+              )}
+              {devis.statut !== "envoyé" && devis.statut !== "accepté" && devis.statut !== "refusé" && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSend(devis.id);
+                  }}
+                  className="h-7 px-2 text-xs hover:bg-green-50 text-green-600"
+                  title="Envoyer par email"
+                >
+                  <Send className="h-3 w-3" />
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 const Devis = () => {
-  const [viewMode, setViewMode] = useState<"liste" | "kanban">("liste");
+  const [viewMode, setViewMode] = useState<"liste" | "kanban">("kanban");
   const [searchQuery, setSearchQuery] = useState("");
   const [statutFilter, setStatutFilter] = useState<string>("all");
   const [clientFilter, setClientFilter] = useState<string>("all");
@@ -127,6 +291,14 @@ const Devis = () => {
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [hoveredDevisId, setHoveredDevisId] = useState<string | null>(null);
+  
+  // États pour les données depuis Supabase
+  const [clients, setClients] = useState<Client[]>([]);
+  const [vehicules, setVehicules] = useState<Vehicule[]>([]);
+  const [devis, setDevis] = useState<Devis[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
 
   // État du formulaire de devis
   const [formClientId, setFormClientId] = useState<string>("");
@@ -138,17 +310,122 @@ const Devis = () => {
   const [formCommentaires, setFormCommentaires] = useState("");
   const [formStatut, setFormStatut] = useState<Devis["statut"]>("brouillon");
 
-  const clients: Client[] = [
-    { id: "1", nom: "Jean Dupont", type: "particulier" },
-    { id: "2", nom: "Garage Auto Pro", type: "pro" },
-    { id: "3", nom: "Marie Martin", type: "particulier" },
-  ];
+  // Charger les clients depuis Supabase
+  useEffect(() => {
+    const loadClients = async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('statut', 'actif')
+        .order('nom');
+      
+      if (error) {
+        console.error('Erreur chargement clients:', error);
+        toast.error('Erreur', { description: 'Impossible de charger les clients' });
+      } else {
+        setClients(data?.map(c => ({
+          id: c.id,
+          nom: c.nom,
+          type: c.type as "particulier" | "pro",
+          email: c.email || "",
+          telephone: c.telephone || "",
+        })) || []);
+      }
+    };
+    loadClients();
+  }, []);
 
-  const vehicules: Vehicule[] = [
-    { id: "1", immatriculation: "AB-123-CD", marque: "Peugeot", modele: "308", clientId: "1" },
-    { id: "2", immatriculation: "EF-456-GH", marque: "Renault", modele: "Clio", clientId: "1" },
-    { id: "3", immatriculation: "IJ-789-KL", marque: "Citroën", modele: "C3", clientId: "2" },
-  ];
+  // Charger les véhicules depuis Supabase
+  useEffect(() => {
+    const loadVehicules = async () => {
+      const { data, error } = await supabase
+        .from('vehicules')
+        .select('*')
+        .order('immatriculation');
+      
+      if (error) {
+        console.error('Erreur chargement véhicules:', error);
+      } else {
+        setVehicules(data?.map(v => ({
+          id: v.id,
+          immatriculation: v.immatriculation,
+          marque: v.marque,
+          modele: v.modele,
+          clientId: v.client_id,
+        })) || []);
+      }
+    };
+    loadVehicules();
+  }, []);
+
+  // Charger les devis depuis Supabase
+  useEffect(() => {
+    const loadDevis = async () => {
+      setLoading(true);
+      const { data: devisData, error: devisError } = await supabase
+        .from('devis')
+        .select(`
+          *,
+          clients:client_id (id, nom, email, telephone),
+          vehicules:vehicule_id (id, immatriculation, marque, modele)
+        `)
+        .order('date', { ascending: false });
+
+      if (devisError) {
+        console.error('Erreur chargement devis:', devisError);
+        toast.error('Erreur', { description: 'Impossible de charger les devis' });
+        setLoading(false);
+        return;
+      }
+
+      // Charger les lignes pour chaque devis
+      const devisWithLignes = await Promise.all(
+        (devisData || []).map(async (d: any) => {
+          const { data: lignesData } = await supabase
+            .from('lignes_devis')
+            .select('*')
+            .eq('devis_id', d.id)
+            .order('ordre');
+
+          const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
+          const vehicule = Array.isArray(d.vehicules) ? d.vehicules[0] : d.vehicules;
+
+          return {
+            id: d.id,
+            numero: d.numero,
+            date: d.date,
+            clientId: d.client_id,
+            clientNom: client?.nom || '',
+            vehiculeId: d.vehicule_id,
+            vehiculeImmat: vehicule?.immatriculation || '',
+            montantHT: Number(d.montant_ht),
+            montantTTC: Number(d.montant_ttc),
+            tva: Number(d.tva),
+            remise: Number(d.remise),
+            remiseType: d.remise_type,
+            statut: d.statut,
+            lignes: (lignesData || []).map((l: any) => ({
+              id: l.id,
+              type: l.type,
+              designation: l.designation,
+              reference: l.reference || undefined,
+              quantite: Number(l.quantite),
+              temps: l.temps ? Number(l.temps) : undefined,
+              prixUnitaireHT: Number(l.prix_unitaire_ht),
+              tauxTVA: Number(l.taux_tva),
+              totalHT: Number(l.total_ht),
+            })),
+            commentaires: d.commentaires || undefined,
+            pdf_url: d.pdf_url || undefined,
+          };
+        })
+      );
+
+      setDevis(devisWithLignes);
+      setLoading(false);
+    };
+    loadDevis();
+  }, []);
 
   const prestations: Prestation[] = [
     { id: "p1", designation: "Vidange moteur", temps: 0.5, prixHT: 45, categorie: "Entretien" },
@@ -164,137 +441,175 @@ const Devis = () => {
     { id: "pc4", designation: "Huile moteur 5W30", reference: "HUI-012", prixAchat: 35, coefficient: 1.8, prixVente: 63 },
   ];
 
-  const devis: Devis[] = [
-    {
-      id: "1",
-      numero: "DEV-2024-101",
-      date: "2024-01-15",
-      clientId: "1",
-      clientNom: "Jean Dupont",
-      vehiculeId: "1",
-      vehiculeImmat: "AB-123-CD",
-      montantHT: 2000,
-      montantTTC: 2400,
-      tva: 400,
-      remise: 0,
-      remiseType: "pourcent",
-      statut: "accepté",
-      lignes: [
-        {
-          id: "l1",
-          type: "prestation",
-          designation: "Remplacement courroie de distribution",
-          quantite: 1,
-          temps: 2,
-          prixUnitaireHT: 180,
-          tauxTVA: 20,
-          totalHT: 360,
+  // Fonction pour générer le PDF (ne s'exécute que si URL fournie)
+  const generateDevisPDF = async (devisId: string) => {
+    const MAKE_GENERATE_URL = import.meta.env.VITE_MAKE_GENERATE_URL || "";
+    
+    if (!MAKE_GENERATE_URL) {
+      return; // Ne rien faire si l'URL n'est pas configurée
+    }
+
+    try {
+      // Charger le devis complet avec client et véhicule
+      const { data: devisData, error: devisError } = await supabase
+        .from('devis')
+        .select(`
+          *,
+          clients:client_id (id, nom, email, telephone),
+          vehicules:vehicule_id (id, immatriculation, marque, modele)
+        `)
+        .eq('id', devisId)
+        .single();
+
+      if (devisError || !devisData) {
+        throw new Error('Devis introuvable');
+      }
+
+      const { data: lignesData } = await supabase
+        .from('lignes_devis')
+        .select('*')
+        .eq('devis_id', devisId)
+        .order('ordre');
+
+      const client = Array.isArray(devisData.clients) ? devisData.clients[0] : devisData.clients;
+      const vehicule = Array.isArray(devisData.vehicules) ? devisData.vehicules[0] : devisData.vehicules;
+
+      const response = await fetch(MAKE_GENERATE_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        {
-          id: "l2",
-          type: "piece",
-          designation: "Courroie distribution",
-          reference: "CRB-456",
-          quantite: 1,
-          prixUnitaireHT: 90,
-          tauxTVA: 20,
-          totalHT: 90,
+        body: JSON.stringify({
+          devis_id: devisId,
+          client: {
+            id: client?.id,
+            nom: client?.nom,
+            email: client?.email || "",
+            telephone: client?.telephone || "",
+          },
+          vehicule: {
+            id: vehicule?.id,
+            immatriculation: vehicule?.immatriculation,
+            marque: vehicule?.marque,
+            modele: vehicule?.modele,
+          },
+          prestations: lignesData || [],
+          totaux: {
+            montantHT: Number(devisData.montant_ht),
+            montantTTC: Number(devisData.montant_ttc),
+            tva: Number(devisData.tva),
+            remise: Number(devisData.remise),
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.pdf_url) {
+        await supabase
+          .from('devis')
+          .update({
+            pdf_url: result.pdf_url,
+            statut: 'généré',
+          })
+          .eq('id', devisId);
+
+        // Recharger les devis
+        const { data: updatedDevis } = await supabase
+          .from('devis')
+          .select('*')
+          .eq('id', devisId)
+          .single();
+
+        if (updatedDevis) {
+          setDevis(prev => prev.map(d => 
+            d.id === devisId 
+              ? { ...d, pdf_url: result.pdf_url, statut: 'généré' as const }
+              : d
+          ));
+        }
+      }
+    } catch (error: any) {
+      console.error('Erreur lors de la génération du PDF:', error);
+      // Ne pas afficher d'erreur à l'utilisateur
+    }
+  };
+
+  // Fonction pour envoyer le devis par email
+  const sendDevisByEmail = async (devisId: string) => {
+    const MAKE_SEND_URL = import.meta.env.VITE_MAKE_SEND_URL || "";
+    
+    if (!MAKE_SEND_URL) {
+      return; // Ne rien faire si l'URL n'est pas configurée
+    }
+
+    try {
+      // Charger le devis avec client
+      const { data: devisData, error: devisError } = await supabase
+        .from('devis')
+        .select(`
+          *,
+          clients:client_id (id, nom, email, telephone)
+        `)
+        .eq('id', devisId)
+        .single();
+
+      if (devisError || !devisData) {
+        throw new Error('Devis introuvable');
+      }
+
+      const client = Array.isArray(devisData.clients) ? devisData.clients[0] : devisData.clients;
+
+      if (!devisData.pdf_url) {
+        throw new Error('PDF non disponible');
+      }
+
+      if (!client?.email) {
+        throw new Error('Email du client manquant');
+      }
+
+      const response = await fetch(MAKE_SEND_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      ],
-      commentaires: "Garantie 2 ans sur la courroie",
-    },
-    {
-      id: "2",
-      numero: "DEV-2024-102",
-      date: "2024-01-14",
-      clientId: "2",
-      clientNom: "Garage Auto Pro",
-      vehiculeId: "3",
-      vehiculeImmat: "IJ-789-KL",
-      montantHT: 850,
-      montantTTC: 1020,
-      tva: 170,
-      remise: 5,
-      remiseType: "pourcent",
-      statut: "envoyé",
-      lignes: [
-        {
-          id: "l3",
-          type: "prestation",
-          designation: "Vidange moteur",
-          quantite: 1,
-          temps: 0.5,
-          prixUnitaireHT: 45,
-          tauxTVA: 20,
-          totalHT: 45,
-        },
-      ],
-    },
-    {
-      id: "3",
-      numero: "DEV-2024-103",
-      date: "2024-01-13",
-      clientId: "1",
-      clientNom: "Jean Dupont",
-      vehiculeId: "2",
-      vehiculeImmat: "EF-456-GH",
-      montantHT: 1500,
-      montantTTC: 1800,
-      tva: 300,
-      remise: 0,
-      remiseType: "pourcent",
-      statut: "brouillon",
-      lignes: [],
-    },
-    {
-      id: "4",
-      numero: "DEV-2024-098",
-      date: "2024-01-10",
-      clientId: "2",
-      clientNom: "Garage Auto Pro",
-      vehiculeId: "3",
-      vehiculeImmat: "IJ-789-KL",
-      montantHT: 1200,
-      montantTTC: 1440,
-      tva: 240,
-      remise: 0,
-      remiseType: "pourcent",
-      statut: "à relancer",
-      lignes: [],
-    },
-    {
-      id: "5",
-      numero: "DEV-2024-099",
-      date: "2024-01-12",
-      clientId: "3",
-      clientNom: "Marie Martin",
-      vehiculeId: "1",
-      vehiculeImmat: "AB-123-CD",
-      montantHT: 3200,
-      montantTTC: 3840,
-      tva: 640,
-      remise: 0,
-      remiseType: "pourcent",
-      statut: "envoyé",
-      lignes: [],
-    },
-    {
-      id: "6",
-      numero: "DEV-2024-100",
-      date: "2024-01-11",
-      clientId: "1",
-      clientNom: "Jean Dupont",
-      vehiculeId: "2",
-      vehiculeImmat: "EF-456-GH",
-      montantHT: 950,
-      montantTTC: 1140,
-      tva: 190,
-      remise: 0,
-      remiseType: "pourcent",
-      statut: "brouillon",
-      lignes: [],
-    },
-  ];
+        body: JSON.stringify({
+          devis_id: devisId,
+          email: client.email,
+          pdf_url: devisData.pdf_url,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Mettre à jour le statut
+      await supabase
+        .from('devis')
+        .update({ statut: 'envoyé' })
+        .eq('id', devisId);
+
+      setDevis(prev => prev.map(d => 
+        d.id === devisId 
+          ? { ...d, statut: 'envoyé' as const }
+          : d
+      ));
+
+      toast.success("Devis envoyé", {
+        description: `Le devis a été envoyé à ${client.email}`,
+      });
+    } catch (error: any) {
+      console.error('Erreur lors de l\'envoi:', error);
+      toast.error("Erreur", {
+        description: error.message || "Une erreur est survenue lors de l'envoi",
+      });
+    }
+  };
 
   const getFilteredDevis = () => {
     let filtered = devis;
@@ -329,20 +644,16 @@ const Devis = () => {
   const devisByStatut = useMemo(() => {
     const groupes: Record<string, Devis[]> = {
       brouillon: [],
+      généré: [],
       envoyé: [],
-      "à relancer": [],
       accepté: [],
+      refusé: [],
+      "à relancer": [],
     };
 
     filteredDevis.forEach((devis) => {
-      if (devis.statut === "brouillon") {
-        groupes.brouillon.push(devis);
-      } else if (devis.statut === "envoyé") {
-        groupes.envoyé.push(devis);
-      } else if (devis.statut === "à relancer") {
-        groupes["à relancer"].push(devis);
-      } else if (devis.statut === "accepté") {
-        groupes.accepté.push(devis);
+      if (groupes[devis.statut]) {
+        groupes[devis.statut].push(devis);
       }
     });
 
@@ -353,11 +664,94 @@ const Devis = () => {
   const totauxKanban = useMemo(() => {
     return {
       brouillon: devisByStatut.brouillon.reduce((sum, d) => sum + d.montantTTC, 0),
+      généré: devisByStatut.généré.reduce((sum, d) => sum + d.montantTTC, 0),
       envoyé: devisByStatut.envoyé.reduce((sum, d) => sum + d.montantTTC, 0),
-      "à relancer": devisByStatut["à relancer"].reduce((sum, d) => sum + d.montantTTC, 0),
       accepté: devisByStatut.accepté.reduce((sum, d) => sum + d.montantTTC, 0),
+      refusé: devisByStatut.refusé.reduce((sum, d) => sum + d.montantTTC, 0),
+      "à relancer": devisByStatut["à relancer"].reduce((sum, d) => sum + d.montantTTC, 0),
     };
   }, [devisByStatut]);
+
+  // Configuration du drag & drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Gestion du drag & drop
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+    setDragOffset(null);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+    setDragOffset(null);
+
+    if (!over) return;
+
+    const devisId = active.id;
+    
+    // Détecter le statut cible : over.id peut être le statut de la colonne ou l'id d'une carte
+    let newStatut: Devis["statut"] | null = null;
+    
+    // Liste des statuts valides
+    const statutsValides: Devis["statut"][] = ["brouillon", "généré", "envoyé", "accepté", "refusé", "à relancer"];
+    
+    // Si over.id est un statut valide, c'est la colonne cible
+    if (statutsValides.includes(over.id as Devis["statut"])) {
+      newStatut = over.id as Devis["statut"];
+    } else {
+      // Sinon, trouver dans quelle colonne se trouve la carte over
+      const overDevis = devis.find(d => d.id === over.id);
+      if (overDevis) {
+        newStatut = overDevis.statut;
+      } else {
+        return; // Pas de colonne valide trouvée
+      }
+    }
+
+    // Trouver le devis actuel
+    const currentDevis = devis.find(d => d.id === devisId);
+    if (!currentDevis || currentDevis.statut === newStatut) return;
+
+    try {
+      // Mettre à jour dans Supabase
+      const { error } = await supabase
+        .from('devis')
+        .update({ statut: newStatut })
+        .eq('id', devisId);
+
+      if (error) throw error;
+
+      // Mettre à jour l'état local
+      setDevis(prev => prev.map(d => 
+        d.id === devisId 
+          ? { ...d, statut: newStatut }
+          : d
+      ));
+
+      // Si le statut devient "envoyé", appeler sendDevisByEmail
+      if (newStatut === "envoyé") {
+        sendDevisByEmail(devisId);
+      }
+
+      toast.success("Statut mis à jour", {
+        description: `Le devis a été déplacé vers "${newStatut}"`,
+      });
+    } catch (error: any) {
+      toast.error("Erreur", {
+        description: error.message || "Impossible de mettre à jour le statut",
+      });
+    }
+  };
 
   const vehiculesFiltres = formClientId
     ? vehicules.filter((v) => v.clientId === formClientId)
@@ -486,16 +880,163 @@ const Devis = () => {
     console.log("Transformer devis en facture", devisId);
   };
 
-  const handleSauvegarder = () => {
-    console.log("Sauvegarder devis", { formClientId, formVehiculeId, formLignes, totaux });
-    setIsCreateSheetOpen(false);
-    setIsEditSheetOpen(false);
+  const handleSauvegarder = async () => {
+    if (!formClientId || !formVehiculeId || formLignes.length === 0) {
+      toast.error("Données incomplètes", {
+        description: "Veuillez remplir le client, le véhicule et ajouter au moins une ligne.",
+      });
+      return;
+    }
+
+    try {
+      // Trouver le client et le véhicule pour obtenir les données complètes
+      const client = clients.find(c => c.id === formClientId);
+      const vehicule = vehicules.find(v => v.id === formVehiculeId);
+      
+      if (!client || !vehicule) {
+        toast.error("Erreur", { description: "Client ou véhicule introuvable." });
+        return;
+      }
+
+      const totaux = calculerTotaux();
+      
+      // Générer un numéro de devis unique
+      const numeroDevis = `DEV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+      // Préparer les données pour Supabase
+      const devisData = {
+        numero: numeroDevis,
+        client_id: formClientId,
+        vehicule_id: formVehiculeId,
+        montant_ht: totaux.totalHTAvecRemise,
+        montant_ttc: totaux.totalTTC,
+        tva: totaux.tva,
+        remise: formRemise,
+        remise_type: formRemiseType,
+        statut: "brouillon" as const,
+        lignes: formLignes,
+        commentaires: formCommentaires || null,
+      };
+
+      // Enregistrer dans Supabase
+      const { data: insertedDevis, error: insertError } = await supabase
+        .from('devis')
+        .insert([devisData])
+        .select()
+        .single();
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      // Enregistrer les lignes dans lignes_devis
+      if (formLignes.length > 0) {
+        const lignesData = formLignes.map((ligne, index) => ({
+          devis_id: insertedDevis.id,
+          type: ligne.type,
+          designation: ligne.designation,
+          reference: ligne.reference || null,
+          quantite: ligne.quantite,
+          temps: ligne.temps || null,
+          prix_unitaire_ht: ligne.prixUnitaireHT,
+          taux_tva: ligne.tauxTVA,
+          total_ht: ligne.totalHT,
+          ordre: index,
+        }));
+
+        const { error: lignesError } = await supabase
+          .from('lignes_devis')
+          .insert(lignesData);
+
+        if (lignesError) {
+          console.error('Erreur lors de l\'enregistrement des lignes:', lignesError);
+          // Ne pas bloquer, le devis est déjà créé
+        }
+      }
+
+      // Recharger les devis
+      const { data: newDevisData } = await supabase
+        .from('devis')
+        .select(`
+          *,
+          clients:client_id (id, nom, email, telephone),
+          vehicules:vehicule_id (id, immatriculation, marque, modele)
+        `)
+        .eq('id', insertedDevis.id)
+        .single();
+
+      if (newDevisData) {
+        const { data: lignesData } = await supabase
+          .from('lignes_devis')
+          .select('*')
+          .eq('devis_id', insertedDevis.id)
+          .order('ordre');
+
+        const client = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
+        const vehicule = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
+
+        const newDevis: Devis = {
+          id: newDevisData.id,
+          numero: newDevisData.numero,
+          date: newDevisData.date,
+          clientId: newDevisData.client_id,
+          clientNom: client?.nom || '',
+          vehiculeId: newDevisData.vehicule_id,
+          vehiculeImmat: vehicule?.immatriculation || '',
+          montantHT: Number(newDevisData.montant_ht),
+          montantTTC: Number(newDevisData.montant_ttc),
+          tva: Number(newDevisData.tva),
+          remise: Number(newDevisData.remise),
+          remiseType: newDevisData.remise_type,
+          statut: newDevisData.statut,
+          lignes: (lignesData || []).map((l: any) => ({
+            id: l.id,
+            type: l.type,
+            designation: l.designation,
+            reference: l.reference || undefined,
+            quantite: Number(l.quantite),
+            temps: l.temps ? Number(l.temps) : undefined,
+            prixUnitaireHT: Number(l.prix_unitaire_ht),
+            tauxTVA: Number(l.taux_tva),
+            totalHT: Number(l.total_ht),
+          })),
+          commentaires: newDevisData.commentaires || undefined,
+          pdf_url: newDevisData.pdf_url || undefined,
+        };
+
+        setDevis(prev => [newDevis, ...prev]);
+      }
+
+      // Appeler generateDevisPDF en arrière-plan (ne bloque pas l'utilisateur)
+      generateDevisPDF(insertedDevis.id).catch(err => {
+        console.error('Erreur génération PDF:', err);
+      });
+
+      // Fermer le sheet sans message
+      setIsCreateSheetOpen(false);
+      setIsEditSheetOpen(false);
+      
+      // Réinitialiser le formulaire
+      setFormClientId("");
+      setFormVehiculeId("");
+      setFormLignes([]);
+      setFormRemise(0);
+      setFormRemiseType("pourcent");
+      setFormCommentaires("");
+      setFormStatut("brouillon");
+    } catch (error: any) {
+      toast.error("Erreur lors de la sauvegarde", {
+        description: error.message || "Une erreur est survenue.",
+      });
+    }
   };
 
   const getStatutBadge = (statut: string) => {
     switch (statut) {
       case "brouillon":
         return <Badge className="bg-gray-500/20 text-gray-600 border-gray-500/30">Brouillon</Badge>;
+      case "généré":
+        return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Généré</Badge>;
       case "envoyé":
         return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Envoyé</Badge>;
       case "accepté":
@@ -580,6 +1121,7 @@ const Devis = () => {
                   <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="all">Tous les statuts</SelectItem>
                     <SelectItem value="brouillon">Brouillon</SelectItem>
+                    <SelectItem value="généré">Généré</SelectItem>
                     <SelectItem value="envoyé">Envoyé</SelectItem>
                     <SelectItem value="accepté">Accepté</SelectItem>
                     <SelectItem value="refusé">Refusé</SelectItem>
@@ -715,230 +1257,235 @@ const Devis = () => {
           </BlurFade>
         )}
 
-        {/* Vue Kanban */}
+        {/* Vue Kanban avec Drag & Drop */}
         {viewMode === "kanban" && (
           <BlurFade inView delay={0.1}>
-            <div className="grid grid-cols-4 gap-4">
-              {/* Colonne Brouillons */}
-              <div className="flex flex-col">
-                <div className="bg-gray-100 p-3 rounded-t-lg border border-gray-200">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold text-gray-900">Brouillons</h3>
-                    <Badge className="bg-gray-500/20 text-gray-600 border-gray-500/30">
-                      {devisByStatut.brouillon.length}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-gray-600 font-medium">
-                    Total: {totauxKanban.brouillon.toLocaleString()} € TTC
-                  </p>
-                </div>
-                <div className="flex-1 bg-gray-50/50 border-x border-b border-gray-200 rounded-b-lg p-3 space-y-3 min-h-[400px] max-h-[600px] overflow-y-auto">
-                  {devisByStatut.brouillon.map((devis) => (
-                    <Card
-                      key={devis.id}
-                      className="cursor-pointer border border-gray-300 bg-white hover:border-blue-400 hover:shadow-md transition-all"
-                      onClick={() => handleEditDevis(devis)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold text-gray-900">{devis.numero}</p>
-                            {getStatutBadge(devis.statut)}
-                          </div>
-                          <div className="space-y-1 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              <span>{devis.clientNom}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Car className="h-3 w-3" />
-                              <span>{devis.vehiculeImmat}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              <span>{format(new Date(devis.date), "d MMM yyyy", { locale: fr })}</span>
-                            </div>
-                          </div>
-                          <div className="pt-2 border-t border-gray-200">
-                            <p className="text-sm font-bold text-gray-900">
-                              {devis.montantTTC.toLocaleString()} € TTC
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {devisByStatut.brouillon.length === 0 && (
-                    <div className="text-center py-8 text-sm text-gray-500">Aucun brouillon</div>
-                  )}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent mx-auto"></div>
+                  <p className="text-sm text-gray-600">Chargement des devis...</p>
                 </div>
               </div>
+            ) : (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="grid grid-cols-6 gap-4">
+                  {/* Colonne Brouillons */}
+                  <KanbanColumn
+                    id="brouillon"
+                    title="Brouillons"
+                    count={devisByStatut.brouillon.length}
+                    total={totauxKanban.brouillon}
+                    headerClassName="bg-gray-100"
+                    contentClassName="bg-gray-50/50"
+                    borderColor="border-gray-200"
+                  >
+                    <SortableContext
+                      id="brouillon"
+                      items={devisByStatut.brouillon.map(d => d.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {devisByStatut.brouillon.map((devis) => (
+                        <SortableDevisCard
+                          key={devis.id}
+                          devis={devis}
+                          onEdit={handleEditDevis}
+                          onSend={sendDevisByEmail}
+                        />
+                      ))}
+                      {devisByStatut.brouillon.length === 0 && (
+                        <div className="text-center py-8 text-xs text-gray-500">Aucun brouillon</div>
+                      )}
+                    </SortableContext>
+                  </KanbanColumn>
 
-              {/* Colonne Envoyés */}
-              <div className="flex flex-col">
-                <div className="bg-blue-100 p-3 rounded-t-lg border border-blue-200">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold text-gray-900">Envoyés</h3>
-                    <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">
-                      {devisByStatut.envoyé.length}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-gray-600 font-medium">
-                    Total: {totauxKanban.envoyé.toLocaleString()} € TTC
-                  </p>
-                </div>
-                <div className="flex-1 bg-blue-50/50 border-x border-b border-blue-200 rounded-b-lg p-3 space-y-3 min-h-[400px] max-h-[600px] overflow-y-auto">
-                  {devisByStatut.envoyé.map((devis) => (
-                    <Card
-                      key={devis.id}
-                      className="cursor-pointer border border-blue-300 bg-white hover:border-blue-400 hover:shadow-md transition-all"
-                      onClick={() => handleEditDevis(devis)}
+                  {/* Colonne Généré */}
+                  <KanbanColumn
+                    id="généré"
+                    title="Généré"
+                    count={devisByStatut.généré.length}
+                    total={totauxKanban.généré}
+                    headerClassName="bg-blue-100"
+                    contentClassName="bg-blue-50/50"
+                    borderColor="border-blue-200"
+                  >
+                    <SortableContext
+                      id="généré"
+                      items={devisByStatut.généré.map(d => d.id)}
+                      strategy={verticalListSortingStrategy}
                     >
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold text-gray-900">{devis.numero}</p>
-                            {getStatutBadge(devis.statut)}
-                          </div>
-                          <div className="space-y-1 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              <span>{devis.clientNom}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Car className="h-3 w-3" />
-                              <span>{devis.vehiculeImmat}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              <span>{format(new Date(devis.date), "d MMM yyyy", { locale: fr })}</span>
-                            </div>
-                          </div>
-                          <div className="pt-2 border-t border-gray-200">
-                            <p className="text-sm font-bold text-gray-900">
-                              {devis.montantTTC.toLocaleString()} € TTC
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {devisByStatut.envoyé.length === 0 && (
-                    <div className="text-center py-8 text-sm text-gray-500">Aucun devis envoyé</div>
-                  )}
-                </div>
-              </div>
+                      {devisByStatut.généré.map((devis) => (
+                        <SortableDevisCard
+                          key={devis.id}
+                          devis={devis}
+                          onEdit={handleEditDevis}
+                          onSend={sendDevisByEmail}
+                        />
+                      ))}
+                      {devisByStatut.généré.length === 0 && (
+                        <div className="text-center py-8 text-xs text-gray-500">Aucun généré</div>
+                      )}
+                    </SortableContext>
+                  </KanbanColumn>
 
-              {/* Colonne À relancer */}
-              <div className="flex flex-col">
-                <div className="bg-orange-100 p-3 rounded-t-lg border border-orange-200">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold text-gray-900">À relancer</h3>
-                    <Badge className="bg-orange-500/20 text-orange-600 border-orange-500/30">
-                      {devisByStatut["à relancer"].length}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-gray-600 font-medium">
-                    Total: {totauxKanban["à relancer"].toLocaleString()} € TTC
-                  </p>
-                </div>
-                <div className="flex-1 bg-orange-50/50 border-x border-b border-orange-200 rounded-b-lg p-3 space-y-3 min-h-[400px] max-h-[600px] overflow-y-auto">
-                  {devisByStatut["à relancer"].map((devis) => (
-                    <Card
-                      key={devis.id}
-                      className="cursor-pointer border border-orange-300 bg-white hover:border-orange-400 hover:shadow-md transition-all"
-                      onClick={() => handleEditDevis(devis)}
+                  {/* Colonne Envoyés */}
+                  <KanbanColumn
+                    id="envoyé"
+                    title="Envoyés"
+                    count={devisByStatut.envoyé.length}
+                    total={totauxKanban.envoyé}
+                    headerClassName="bg-blue-100"
+                    contentClassName="bg-blue-50/50"
+                    borderColor="border-blue-200"
+                  >
+                    <SortableContext
+                      id="envoyé"
+                      items={devisByStatut.envoyé.map(d => d.id)}
+                      strategy={verticalListSortingStrategy}
                     >
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold text-gray-900">{devis.numero}</p>
-                            {getStatutBadge(devis.statut)}
-                          </div>
-                          <div className="space-y-1 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              <span>{devis.clientNom}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Car className="h-3 w-3" />
-                              <span>{devis.vehiculeImmat}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              <span>{format(new Date(devis.date), "d MMM yyyy", { locale: fr })}</span>
-                            </div>
-                          </div>
-                          <div className="pt-2 border-t border-gray-200">
-                            <p className="text-sm font-bold text-gray-900">
-                              {devis.montantTTC.toLocaleString()} € TTC
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {devisByStatut["à relancer"].length === 0 && (
-                    <div className="text-center py-8 text-sm text-gray-500">Aucun devis à relancer</div>
-                  )}
-                </div>
-              </div>
+                      {devisByStatut.envoyé.map((devis) => (
+                        <SortableDevisCard
+                          key={devis.id}
+                          devis={devis}
+                          onEdit={handleEditDevis}
+                          onSend={sendDevisByEmail}
+                        />
+                      ))}
+                      {devisByStatut.envoyé.length === 0 && (
+                        <div className="text-center py-8 text-xs text-gray-500">Aucun envoyé</div>
+                      )}
+                    </SortableContext>
+                  </KanbanColumn>
 
-              {/* Colonne Acceptés */}
-              <div className="flex flex-col">
-                <div className="bg-green-100 p-3 rounded-t-lg border border-green-200">
-                  <div className="flex items-center justify-between mb-1">
-                    <h3 className="font-semibold text-gray-900">Acceptés</h3>
-                    <Badge className="bg-green-500/20 text-green-600 border-green-500/30">
-                      {devisByStatut.accepté.length}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-gray-600 font-medium">
-                    Total: {totauxKanban.accepté.toLocaleString()} € TTC
-                  </p>
-                </div>
-                <div className="flex-1 bg-green-50/50 border-x border-b border-green-200 rounded-b-lg p-3 space-y-3 min-h-[400px] max-h-[600px] overflow-y-auto">
-                  {devisByStatut.accepté.map((devis) => (
-                    <Card
-                      key={devis.id}
-                      className="cursor-pointer border border-green-300 bg-white hover:border-green-400 hover:shadow-md transition-all"
-                      onClick={() => handleEditDevis(devis)}
+                  {/* Colonne Acceptés */}
+                  <KanbanColumn
+                    id="accepté"
+                    title="Acceptés"
+                    count={devisByStatut.accepté.length}
+                    total={totauxKanban.accepté}
+                    headerClassName="bg-green-100"
+                    contentClassName="bg-green-50/50"
+                    borderColor="border-green-200"
+                  >
+                    <SortableContext
+                      id="accepté"
+                      items={devisByStatut.accepté.map(d => d.id)}
+                      strategy={verticalListSortingStrategy}
                     >
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="font-semibold text-gray-900">{devis.numero}</p>
-                            {getStatutBadge(devis.statut)}
-                          </div>
-                          <div className="space-y-1 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              <span>{devis.clientNom}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Car className="h-3 w-3" />
-                              <span>{devis.vehiculeImmat}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              <span>{format(new Date(devis.date), "d MMM yyyy", { locale: fr })}</span>
-                            </div>
-                          </div>
-                          <div className="pt-2 border-t border-gray-200">
-                            <p className="text-sm font-bold text-gray-900">
-                              {devis.montantTTC.toLocaleString()} € TTC
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  {devisByStatut.accepté.length === 0 && (
-                    <div className="text-center py-8 text-sm text-gray-500">Aucun devis accepté</div>
-                  )}
+                      {devisByStatut.accepté.map((devis) => (
+                        <SortableDevisCard
+                          key={devis.id}
+                          devis={devis}
+                          onEdit={handleEditDevis}
+                          onSend={sendDevisByEmail}
+                        />
+                      ))}
+                      {devisByStatut.accepté.length === 0 && (
+                        <div className="text-center py-8 text-xs text-gray-500">Aucun accepté</div>
+                      )}
+                    </SortableContext>
+                  </KanbanColumn>
+
+                  {/* Colonne Refusés */}
+                  <KanbanColumn
+                    id="refusé"
+                    title="Refusés"
+                    count={devisByStatut.refusé.length}
+                    total={totauxKanban.refusé}
+                    headerClassName="bg-red-100"
+                    contentClassName="bg-red-50/50"
+                    borderColor="border-red-200"
+                  >
+                    <SortableContext
+                      id="refusé"
+                      items={devisByStatut.refusé.map(d => d.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {devisByStatut.refusé.map((devis) => (
+                        <SortableDevisCard
+                          key={devis.id}
+                          devis={devis}
+                          onEdit={handleEditDevis}
+                          onSend={sendDevisByEmail}
+                        />
+                      ))}
+                      {devisByStatut.refusé.length === 0 && (
+                        <div className="text-center py-8 text-xs text-gray-500">Aucun refusé</div>
+                      )}
+                    </SortableContext>
+                  </KanbanColumn>
+
+                  {/* Colonne À relancer */}
+                  <KanbanColumn
+                    id="à relancer"
+                    title="À relancer"
+                    count={devisByStatut["à relancer"].length}
+                    total={totauxKanban["à relancer"]}
+                    headerClassName="bg-orange-100"
+                    contentClassName="bg-orange-50/50"
+                    borderColor="border-orange-200"
+                  >
+                    <SortableContext
+                      id="à relancer"
+                      items={devisByStatut["à relancer"].map(d => d.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {devisByStatut["à relancer"].map((devis) => (
+                        <SortableDevisCard
+                          key={devis.id}
+                          devis={devis}
+                          onEdit={handleEditDevis}
+                          onSend={sendDevisByEmail}
+                        />
+                      ))}
+                      {devisByStatut["à relancer"].length === 0 && (
+                        <div className="text-center py-8 text-xs text-gray-500">Aucun à relancer</div>
+                      )}
+                    </SortableContext>
+                  </KanbanColumn>
                 </div>
-              </div>
-            </div>
+                <DragOverlay
+                  adjustScale={false}
+                  dropAnimation={null}
+                  style={{ cursor: 'grabbing' }}
+                >
+                  {activeId ? (() => {
+                    const activeDevis = devis.find(d => d.id === activeId);
+                    if (!activeDevis) return null;
+                    
+                    return (
+                      <Card className="border-2 border-blue-400 bg-white shadow-xl w-64 opacity-95">
+                        <CardContent className="p-4">
+                          <div className="space-y-2">
+                            <p className="font-semibold text-sm text-gray-900">{activeDevis.numero}</p>
+                            <div className="space-y-1 text-xs text-gray-600">
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                <span className="truncate">{activeDevis.clientNom}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Car className="h-3 w-3" />
+                                <span>{activeDevis.vehiculeImmat}</span>
+                              </div>
+                            </div>
+                            <div className="pt-2 border-t border-gray-200">
+                              <p className="text-sm font-bold text-gray-900">
+                                {activeDevis.montantTTC.toLocaleString()} € TTC
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })() : null}
+                </DragOverlay>
+              </DndContext>
+            )}
           </BlurFade>
         )}
 
@@ -1149,6 +1696,7 @@ const Devis = () => {
                     </SelectTrigger>
                     <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                       <SelectItem value="brouillon">Brouillon</SelectItem>
+                      <SelectItem value="généré">Généré</SelectItem>
                       <SelectItem value="envoyé">Envoyé</SelectItem>
                       <SelectItem value="accepté">Accepté</SelectItem>
                       <SelectItem value="refusé">Refusé</SelectItem>

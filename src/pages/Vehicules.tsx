@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,9 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale/fr";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+import { Edit, Trash2 } from "lucide-react";
 
 interface Vehicule {
   id: string;
@@ -113,174 +116,294 @@ const Vehicules = () => {
   const [clientFilter, setClientFilter] = useState<string>("all");
   const [selectedVehicule, setSelectedVehicule] = useState<Vehicule | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isNotificationDialogOpen, setIsNotificationDialogOpen] = useState(false);
   const [notificationType, setNotificationType] = useState<"véhicule_prêt" | "document_manquant" | null>(null);
   const [notificationMessage, setNotificationMessage] = useState("");
+  
+  // États des données depuis Supabase
+  const [vehicules, setVehicules] = useState<Vehicule[]>([]);
+  const [clientsList, setClientsList] = useState<{ id: string; nom: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // États du formulaire de création/modification
+  const [formClientId, setFormClientId] = useState<string>("");
+  const [formImmatriculation, setFormImmatriculation] = useState("");
+  const [formMarque, setFormMarque] = useState("");
+  const [formModele, setFormModele] = useState("");
+  const [formAnnee, setFormAnnee] = useState<string>("");
+  const [formKilometrage, setFormKilometrage] = useState<string>("");
+  const [editingVehiculeId, setEditingVehiculeId] = useState<string | null>(null);
 
-  const vehicules: Vehicule[] = [
-    {
-      id: "1",
-      immatriculation: "AB-123-CD",
-      marque: "Peugeot",
-      modele: "308",
-      annee: 2019,
-      kilometrage: 85000,
-      clientId: "1",
-      clientNom: "Jean Dupont",
-      nbDevis: 3,
-      nbInterventions: 5,
-      infosTechniques: {
-        energie: "Diesel",
-        puissance: "120 CV",
-        couleur: "Bleu",
-        dateAchat: "2019-03-15",
-      },
-      notesTechniques: [
-        {
-          id: "n1",
-          date: "2024-01-10",
-          texte: "Courroie de distribution changée à 120 000 km",
-          auteur: "Mécanicien",
-        },
-        {
-          id: "n2",
-          date: "2024-01-05",
-          texte: "Vidange effectuée, filtre à huile remplacé",
-          auteur: "Mécanicien",
-        },
-      ],
-      devis: [
-        {
-          id: "d1",
-          numero: "DEV-2024-101",
-          date: "2024-01-15",
-          montant: 2500,
-          statut: "accepté",
-        },
-        {
-          id: "d2",
-          numero: "DEV-2024-087",
-          date: "2024-01-10",
-          montant: 850,
-          statut: "envoyé",
-        },
-      ],
-      factures: [
-        {
-          id: "f1",
-          numero: "FAC-2024-045",
-          date: "2024-01-12",
-          montant: 2500,
-          statut: "payé",
-        },
-      ],
-      documents: [
-        { id: "doc1", nom: "Carte grise.pdf", type: "Carte grise", date: "2024-01-10" },
-        { id: "doc2", nom: "Contrôle technique.pdf", type: "CT", date: "2024-01-08" },
-      ],
-      notifications: [
-        {
-          id: "not1",
-          date: "2024-01-12",
-          type: "véhicule_prêt",
-          statut: "envoyé",
-          message: "Votre véhicule est prêt à être récupéré.",
-        },
-      ],
-    },
-    {
-      id: "2",
-      immatriculation: "EF-456-GH",
-      marque: "Renault",
-      modele: "Clio",
-      annee: 2021,
-      kilometrage: 35000,
-      clientId: "1",
-      clientNom: "Jean Dupont",
-      nbDevis: 2,
-      nbInterventions: 2,
-      infosTechniques: {
-        energie: "Essence",
-        puissance: "90 CV",
-        couleur: "Blanc",
-        dateAchat: "2021-06-20",
-      },
-      notesTechniques: [],
-      devis: [
-        {
-          id: "d3",
-          numero: "DEV-2024-092",
-          date: "2024-01-09",
-          montant: 3100,
-          statut: "accepté",
-        },
-      ],
-      factures: [],
-      documents: [],
-      notifications: [],
-    },
-    {
-      id: "3",
-      immatriculation: "IJ-789-KL",
-      marque: "Citroën",
-      modele: "C3",
-      annee: 2020,
-      kilometrage: 65000,
-      clientId: "2",
-      clientNom: "Garage Auto Pro",
-      nbDevis: 4,
-      nbInterventions: 6,
-      infosTechniques: {
-        energie: "Diesel",
-        puissance: "100 CV",
-        couleur: "Gris",
-        dateAchat: "2020-09-10",
-      },
-      notesTechniques: [
-        {
-          id: "n3",
-          date: "2024-01-08",
-          texte: "Pneus avant usés, recommandation de changement",
-          auteur: "Mécanicien",
-        },
-      ],
-      devis: [
-        {
-          id: "d4",
-          numero: "DEV-2024-098",
-          date: "2024-01-12",
-          montant: 1900,
-          statut: "envoyé",
-        },
-      ],
-      factures: [
-        {
-          id: "f2",
-          numero: "FAC-2024-038",
-          date: "2024-01-08",
-          montant: 1900,
-          statut: "à payer",
-        },
-      ],
-      documents: [
-        { id: "doc3", nom: "Carte grise.pdf", type: "Carte grise", date: "2024-01-05" },
-      ],
-      notifications: [],
-    },
-  ];
+  // Charger les clients depuis Supabase
+  useEffect(() => {
+    const loadClients = async () => {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, nom')
+        .eq('statut', 'actif')
+        .order('nom');
+      
+      if (error) {
+        console.error('Erreur chargement clients:', error);
+      } else {
+        setClientsList(data || []);
+      }
+    };
+    loadClients();
+  }, []);
 
-  const marques = Array.from(new Set(vehicules.map((v) => v.marque)));
-  const clients = Array.from(new Set(vehicules.map((v) => v.clientNom)));
+  // Charger les véhicules depuis Supabase
+  const loadVehicules = async () => {
+    setLoading(true);
+    try {
+      const { data: vehiculesData, error: vehiculesError } = await supabase
+        .from('vehicules')
+        .select(`
+          *,
+          clients:client_id (id, nom)
+        `)
+        .order('immatriculation');
 
-  const filteredVehicules = vehicules.filter((vehicule) => {
-    const matchesImmatriculation =
-      searchImmatriculation === "" ||
-      vehicule.immatriculation.toLowerCase().includes(searchImmatriculation.toLowerCase());
-    const matchesMarque = marqueFilter === "all" || vehicule.marque === marqueFilter;
-    const matchesClient = clientFilter === "all" || vehicule.clientNom === clientFilter;
+      if (vehiculesError) {
+        throw vehiculesError;
+      }
 
-    return matchesImmatriculation && matchesMarque && matchesClient;
-  });
+      const vehiculesWithRelations = await Promise.all(
+        (vehiculesData || []).map(async (v: any) => {
+          const client = Array.isArray(v.clients) ? v.clients[0] : v.clients;
+
+          const { data: devisData } = await supabase
+            .from('devis')
+            .select('id, numero, date, montant_ttc, statut')
+            .eq('vehicule_id', v.id)
+            .order('date', { ascending: false });
+
+          let facturesData = null;
+          try {
+            const { data } = await supabase
+              .from('factures')
+              .select('id, numero, date, montant_ttc, statut_paiement')
+              .eq('vehicule_id', v.id)
+              .order('date', { ascending: false });
+            facturesData = data;
+          } catch (error) {
+            // Ignorer si la table n'existe pas
+          }
+
+          return {
+            id: v.id,
+            immatriculation: v.immatriculation,
+            marque: v.marque,
+            modele: v.modele,
+            annee: v.annee || 0,
+            kilometrage: v.kilometrage || 0,
+            clientId: v.client_id,
+            clientNom: client?.nom || '',
+            nbDevis: devisData?.length || 0,
+            nbInterventions: 0,
+            infosTechniques: {},
+            notesTechniques: [],
+            devis: (devisData || []).map((d: any) => ({
+              id: d.id,
+              numero: d.numero,
+              date: d.date,
+              montant: Number(d.montant_ttc),
+              statut: d.statut as "brouillon" | "envoyé" | "accepté" | "refusé",
+            })),
+            factures: (facturesData || []).map((f: any) => ({
+              id: f.id,
+              numero: f.numero,
+              date: f.date,
+              montant: Number(f.montant_ttc),
+              statut: f.statut_paiement === 'payé' ? 'payé' as const : 
+                      f.statut_paiement === 'en_attente' ? 'à payer' as const : 'en retard' as const,
+            })),
+            documents: [],
+            notifications: [],
+          } as Vehicule;
+        })
+      );
+
+      setVehicules(vehiculesWithRelations);
+    } catch (error: any) {
+      console.error('Erreur lors du chargement des véhicules:', error);
+      toast.error('Erreur', {
+        description: error.message || 'Impossible de charger les véhicules',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVehicules();
+  }, []);
+
+  const marques = useMemo(() => Array.from(new Set(vehicules.map((v) => v.marque))), [vehicules]);
+
+  const filteredVehicules = useMemo(() => {
+    return vehicules.filter((vehicule) => {
+      const matchesImmatriculation =
+        searchImmatriculation === "" ||
+        vehicule.immatriculation.toLowerCase().includes(searchImmatriculation.toLowerCase());
+      const matchesMarque = marqueFilter === "all" || vehicule.marque === marqueFilter;
+      const matchesClient = clientFilter === "all" || vehicule.clientId === clientFilter;
+
+      return matchesImmatriculation && matchesMarque && matchesClient;
+    });
+  }, [vehicules, searchImmatriculation, marqueFilter, clientFilter]);
+
+  // Fonction pour créer un véhicule
+  const handleCreateVehicule = async () => {
+    if (!formClientId || !formImmatriculation.trim() || !formMarque.trim() || !formModele.trim()) {
+      toast.error("Données incomplètes", {
+        description: "Veuillez remplir le client, l'immatriculation, la marque et le modèle",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('vehicules')
+        .insert([
+          {
+            client_id: formClientId,
+            immatriculation: formImmatriculation.trim(),
+            marque: formMarque.trim(),
+            modele: formModele.trim(),
+            annee: formAnnee ? parseInt(formAnnee) : null,
+            kilometrage: formKilometrage ? parseInt(formKilometrage) : null,
+          },
+        ]);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Véhicule créé", {
+        description: `Le véhicule ${formImmatriculation} a été créé avec succès`,
+      });
+
+      // Réinitialiser le formulaire
+      setFormClientId("");
+      setFormImmatriculation("");
+      setFormMarque("");
+      setFormModele("");
+      setFormAnnee("");
+      setFormKilometrage("");
+
+      // Fermer la modal
+      setIsCreateDialogOpen(false);
+
+      // Recharger les véhicules
+      await loadVehicules();
+    } catch (error: any) {
+      console.error('Erreur lors de la création du véhicule:', error);
+      toast.error("Erreur", {
+        description: error.message || "Impossible de créer le véhicule",
+      });
+    }
+  };
+
+  // Fonction pour modifier un véhicule
+  const handleEditVehicule = (vehicule: Vehicule) => {
+    setEditingVehiculeId(vehicule.id);
+    setFormClientId(vehicule.clientId);
+    setFormImmatriculation(vehicule.immatriculation);
+    setFormMarque(vehicule.marque);
+    setFormModele(vehicule.modele);
+    setFormAnnee(vehicule.annee ? vehicule.annee.toString() : "");
+    setFormKilometrage(vehicule.kilometrage ? vehicule.kilometrage.toString() : "");
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateVehicule = async () => {
+    if (!editingVehiculeId) return;
+
+    if (!formClientId || !formImmatriculation.trim() || !formMarque.trim() || !formModele.trim()) {
+      toast.error("Données incomplètes", {
+        description: "Veuillez remplir le client, l'immatriculation, la marque et le modèle",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('vehicules')
+        .update({
+          client_id: formClientId,
+          immatriculation: formImmatriculation.trim(),
+          marque: formMarque.trim(),
+          modele: formModele.trim(),
+          annee: formAnnee ? parseInt(formAnnee) : null,
+          kilometrage: formKilometrage ? parseInt(formKilometrage) : null,
+        })
+        .eq('id', editingVehiculeId);
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Véhicule modifié", {
+        description: `Le véhicule ${formImmatriculation} a été modifié avec succès`,
+      });
+
+      // Réinitialiser le formulaire
+      setFormClientId("");
+      setFormImmatriculation("");
+      setFormMarque("");
+      setFormModele("");
+      setFormAnnee("");
+      setFormKilometrage("");
+      setEditingVehiculeId(null);
+
+      // Fermer la modal
+      setIsEditDialogOpen(false);
+
+      // Recharger les véhicules
+      await loadVehicules();
+    } catch (error: any) {
+      console.error('Erreur lors de la modification du véhicule:', error);
+      toast.error("Erreur", {
+        description: error.message || "Impossible de modifier le véhicule",
+      });
+    }
+  };
+
+  // Fonction pour supprimer un véhicule
+  const handleDeleteVehicule = async (vehiculeId: string, immatriculation: string) => {
+    try {
+      const { error } = await supabase
+        .from('vehicules')
+        .delete()
+        .eq('id', vehiculeId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Mettre à jour la liste localement
+      setVehicules(prev => prev.filter(v => v.id !== vehiculeId));
+
+      toast.success("Véhicule supprimé", {
+        description: `Le véhicule ${immatriculation} a été supprimé`,
+      });
+
+      // Si le véhicule supprimé était sélectionné, désélectionner
+      if (selectedVehicule?.id === vehiculeId) {
+        setSelectedVehicule(null);
+      }
+
+      // Recharger les véhicules
+      await loadVehicules();
+    } catch (error: any) {
+      console.error('Erreur lors de la suppression du véhicule:', error);
+      toast.error("Erreur", {
+        description: error.message || "Impossible de supprimer le véhicule. Il est peut-être lié à des devis.",
+      });
+    }
+  };
 
   const handleSelectVehicule = (vehicule: Vehicule) => {
     setSelectedVehicule(vehicule);
@@ -445,9 +568,9 @@ const Vehicules = () => {
                   </SelectTrigger>
                   <SelectContent className="bg-white border-blue-200/50 text-gray-900">
                     <SelectItem value="all">Tous les clients</SelectItem>
-                    {clients.map((client) => (
-                      <SelectItem key={client} value={client}>
-                        {client}
+                    {clientsList.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.nom}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -457,8 +580,14 @@ const Vehicules = () => {
 
             {/* Liste des véhicules */}
             <div className="flex-1 overflow-y-auto">
-              <div className="p-2 space-y-2">
-                {filteredVehicules.map((vehicule) => (
+              {loading ? (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                  <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent mx-auto"></div>
+                  <p className="text-sm text-gray-600">Chargement des véhicules...</p>
+                </div>
+              ) : (
+                <div className="p-2 space-y-2">
+                  {filteredVehicules.map((vehicule) => (
                   <Card
                     key={vehicule.id}
                     onClick={() => handleSelectVehicule(vehicule)}
@@ -474,8 +603,34 @@ const Vehicules = () => {
                           <Car className="h-5 w-5 text-blue-600" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center justify-between mb-1">
                             <p className="font-semibold text-gray-900 truncate">{vehicule.immatriculation}</p>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditVehicule(vehicule);
+                                }}
+                                className="h-6 w-6 p-0 hover:bg-blue-50 text-blue-600"
+                                title="Modifier le véhicule"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteVehicule(vehicule.id, vehicule.immatriculation);
+                                }}
+                                className="h-6 w-6 p-0 hover:bg-red-50 text-red-600"
+                                title="Supprimer le véhicule"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                           <p className="text-sm text-gray-700 mb-2">
                             {vehicule.marque} {vehicule.modele}
@@ -494,12 +649,13 @@ const Vehicules = () => {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-              {filteredVehicules.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-center p-6">
-                  <Car className="h-12 w-12 mb-3 text-gray-400" />
-                  <p className="text-gray-700/60">Aucun véhicule trouvé</p>
+                  ))}
+                  {filteredVehicules.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                      <Car className="h-12 w-12 mb-3 text-gray-400" />
+                      <p className="text-gray-700/60">Aucun véhicule trouvé</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -529,6 +685,26 @@ const Vehicules = () => {
                       <p className="text-sm text-gray-600">
                         {selectedVehicule.marque} {selectedVehicule.modele} • Client: {selectedVehicule.clientNom}
                       </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleEditVehicule(selectedVehicule)}
+                        className="h-8 px-2 hover:bg-blue-50"
+                        title="Modifier le véhicule"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteVehicule(selectedVehicule.id, selectedVehicule.immatriculation)}
+                        className="h-8 px-2 hover:bg-red-50 text-red-600"
+                        title="Supprimer le véhicule"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -795,40 +971,95 @@ const Vehicules = () => {
         </Dialog>
 
         {/* Dialog Créer véhicule */}
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open) {
+            // Réinitialiser le formulaire à la fermeture
+            setFormClientId("");
+            setFormImmatriculation("");
+            setFormMarque("");
+            setFormModele("");
+            setFormAnnee("");
+            setFormKilometrage("");
+          }
+        }}>
           <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-2xl">
             <DialogHeader>
               <DialogTitle className="text-gray-900">Créer un véhicule</DialogTitle>
               <DialogDescription className="text-gray-700/70">Ajouter un nouveau véhicule à la base</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Client <span className="text-red-500">*</span>
+                </label>
+                <Select value={formClientId} onValueChange={setFormClientId}>
+                  <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
+                    <SelectValue placeholder="Sélectionner un client" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                    {clientsList.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Immatriculation</label>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Immatriculation <span className="text-red-500">*</span>
+                  </label>
                   <Input
+                    value={formImmatriculation}
+                    onChange={(e) => setFormImmatriculation(e.target.value)}
                     placeholder="AB-123-CD"
                     className="bg-white border-blue-300/50 text-gray-900"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Marque</label>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Marque <span className="text-red-500">*</span>
+                  </label>
                   <Input
+                    value={formMarque}
+                    onChange={(e) => setFormMarque(e.target.value)}
                     placeholder="Peugeot"
                     className="bg-white border-blue-300/50 text-gray-900"
+                    required
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">Modèle</label>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Modèle <span className="text-red-500">*</span>
+                  </label>
                   <Input
+                    value={formModele}
+                    onChange={(e) => setFormModele(e.target.value)}
                     placeholder="308"
                     className="bg-white border-blue-300/50 text-gray-900"
+                    required
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">Année</label>
                   <Input
                     type="number"
+                    value={formAnnee}
+                    onChange={(e) => setFormAnnee(e.target.value)}
                     placeholder="2019"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Kilométrage</label>
+                  <Input
+                    type="number"
+                    value={formKilometrage}
+                    onChange={(e) => setFormKilometrage(e.target.value)}
+                    placeholder="85000"
                     className="bg-white border-blue-300/50 text-gray-900"
                   />
                 </div>
@@ -842,10 +1073,124 @@ const Vehicules = () => {
                   Annuler
                 </Button>
                 <Button
-                  onClick={() => setIsCreateDialogOpen(false)}
+                  onClick={handleCreateVehicule}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   Créer
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog Modifier véhicule */}
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            // Réinitialiser le formulaire à la fermeture
+            setFormClientId("");
+            setFormImmatriculation("");
+            setFormMarque("");
+            setFormModele("");
+            setFormAnnee("");
+            setFormKilometrage("");
+            setEditingVehiculeId(null);
+          }
+        }}>
+          <DialogContent className="bg-white border-blue-200/50 text-gray-900 max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-gray-900">Modifier le véhicule</DialogTitle>
+              <DialogDescription className="text-gray-700/70">Modifiez les informations du véhicule</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Client <span className="text-red-500">*</span>
+                </label>
+                <Select value={formClientId} onValueChange={setFormClientId}>
+                  <SelectTrigger className="bg-white border-blue-300/50 text-gray-900">
+                    <SelectValue placeholder="Sélectionner un client" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border-blue-200/50 text-gray-900">
+                    {clientsList.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Immatriculation <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    value={formImmatriculation}
+                    onChange={(e) => setFormImmatriculation(e.target.value)}
+                    placeholder="AB-123-CD"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Marque <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    value={formMarque}
+                    onChange={(e) => setFormMarque(e.target.value)}
+                    placeholder="Peugeot"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    Modèle <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    value={formModele}
+                    onChange={(e) => setFormModele(e.target.value)}
+                    placeholder="308"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Année</label>
+                  <Input
+                    type="number"
+                    value={formAnnee}
+                    onChange={(e) => setFormAnnee(e.target.value)}
+                    placeholder="2019"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">Kilométrage</label>
+                  <Input
+                    type="number"
+                    value={formKilometrage}
+                    onChange={(e) => setFormKilometrage(e.target.value)}
+                    placeholder="85000"
+                    className="bg-white border-blue-300/50 text-gray-900"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                  className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleUpdateVehicule}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  Enregistrer
                 </Button>
               </div>
             </div>

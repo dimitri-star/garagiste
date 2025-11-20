@@ -1,6 +1,6 @@
 import { LayoutDashboard, Car, FileText, Bell, Receipt, TrendingUp, UserCheck, BookOpen, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
   SidebarContent,
@@ -28,13 +28,10 @@ const items = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const navigate = useNavigate();
+  const { signOut } = useAuth();
 
-  const handleLogout = () => {
-    // Optionnel : nettoyer le localStorage si nécessaire
-    // localStorage.removeItem("userFirstName");
-    // localStorage.removeItem("userEmail");
-    navigate("/login");
+  const handleLogout = async () => {
+    await signOut();
   };
 
   return (
