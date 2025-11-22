@@ -183,7 +183,7 @@ const Landing: FC = () => {
           <div className="space-y-0.5">
             <p className="text-xs font-medium uppercase tracking-[0.3em] text-blue-600/80">Solution de gestion</p>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-bold tracking-tight text-gray-900">Sarl LS MECA</span>
+              <span className="text-xl font-bold tracking-tight text-gray-900">LS MECA</span>
             </div>
             <p className="text-xs text-gray-600/70">Solution de gestion pour garages</p>
           </div>

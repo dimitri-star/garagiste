@@ -1120,15 +1120,15 @@ const RapportFinancier = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* CA facturé */}
             <Card className="border border-blue-200/50 bg-gradient-to-br from-blue-50 to-white text-gray-900 shadow-lg">
-              <CardContent className="p-6">
+                <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-blue-100 rounded-lg">
                     <Receipt className="h-6 w-6 text-blue-600" />
-                  </div>
+                      </div>
                   <Badge className="bg-blue-500/20 text-blue-700 border-blue-500/30">
                     Période choisie
                   </Badge>
-                </div>
+                    </div>
                 <p className="text-sm text-gray-600 mb-1">CA facturé</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {caFacture.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €
@@ -1145,11 +1145,11 @@ const RapportFinancier = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-green-100 rounded-lg">
                     <DollarSign className="h-6 w-6 text-green-600" />
-                  </div>
+                    </div>
                   <Badge className="bg-green-500/20 text-green-700 border-green-500/30">
                     Payé
                   </Badge>
-                </div>
+                  </div>
                 <p className="text-sm text-gray-600 mb-1">CA encaissé</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {caEncaisse.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €
@@ -1157,8 +1157,8 @@ const RapportFinancier = () => {
                 <p className="text-xs text-gray-500 mt-2">
                   {facturesFiltrees.filter((f) => f.statutPaiement === "payée").length} facture{facturesFiltrees.filter((f) => f.statutPaiement === "payée").length > 1 ? "s" : ""} payée{facturesFiltrees.filter((f) => f.statutPaiement === "payée").length > 1 ? "s" : ""}
                 </p>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
             {/* CA en retard / en attente */}
             <Card className="border border-red-200/50 bg-gradient-to-br from-red-50 to-white text-gray-900 shadow-lg">
@@ -1166,7 +1166,7 @@ const RapportFinancier = () => {
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 bg-red-100 rounded-lg">
                     <AlertCircle className="h-6 w-6 text-red-600" />
-                  </div>
+        </div>
                   <Badge className="bg-red-500/20 text-red-700 border-red-500/30">
                     {caEnRetard > 0 ? "En retard" : "En attente"}
                   </Badge>
@@ -1187,32 +1187,32 @@ const RapportFinancier = () => {
         {/* Section 1 - Graph CA par mois */}
         <BlurFade inView delay={0.1}>
           <Card className="border border-blue-200/50 bg-white text-gray-900 shadow-lg">
-            <CardHeader>
+              <CardHeader>
               <CardTitle className="flex items-center gap-2 text-gray-900">
                 <BarChart3 className="h-5 w-5 text-blue-600" />
                 CA par mois (12 derniers mois)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
               <ResponsiveContainer width="100%" height={400}>
                 <AreaChart data={caParMois}>
-                  <defs>
-                    <linearGradient id="colorCa" x1="0" y1="0" x2="0" y2="1">
+                    <defs>
+                      <linearGradient id="colorCa" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
                       <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1} />
-                    </linearGradient>
-                  </defs>
+                      </linearGradient>
+                    </defs>
                   <XAxis dataKey="mois" stroke="#64748b" />
                   <YAxis stroke="#64748b" />
-                  <Tooltip
-                    contentStyle={{
+                    <Tooltip
+                      contentStyle={{
                       backgroundColor: "rgba(255,255,255,0.95)",
                       border: "1px solid rgba(59,130,246,0.3)",
-                      borderRadius: "8px",
+                        borderRadius: "8px",
                       color: "#1e293b",
-                    }}
-                    formatter={(value: number) => `€ ${value.toLocaleString()}`}
-                  />
+                      }}
+                      formatter={(value: number) => `€ ${value.toLocaleString()}`}
+                    />
                   <Area
                     type="monotone"
                     dataKey="ca"
@@ -1221,16 +1221,16 @@ const RapportFinancier = () => {
                     fillOpacity={1}
                     fill="url(#colorCa)"
                   />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </BlurFade>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </BlurFade>
 
         {/* Section 2 - Répartition par type / activité */}
         <BlurFade inView delay={0.15}>
           <Card className="border border-blue-200/50 bg-white text-gray-900 shadow-lg">
-            <CardHeader>
+              <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-gray-900">
                   <PieChartIcon className="h-5 w-5 text-blue-600" />
@@ -1248,8 +1248,8 @@ const RapportFinancier = () => {
                   </Button>
                 )}
               </div>
-            </CardHeader>
-            <CardContent>
+              </CardHeader>
+              <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Donut Chart */}
                 <ResponsiveContainer width="100%" height={300}>
@@ -1304,17 +1304,17 @@ const RapportFinancier = () => {
                           onClick={() => setSelectedPrestationType(item.name)}
                         >
                           <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
                               <div
                                 className="h-3 w-3 rounded-full"
                                 style={{ backgroundColor: COLORS[index % COLORS.length] }}
                               />
                               <span className="font-semibold text-sm text-gray-900">{item.name}</span>
-                            </div>
+                      </div>
                             <span className="font-bold text-gray-900">
                               € {item.value.toLocaleString()}
                             </span>
-                          </div>
+                    </div>
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div
                               className="h-2 rounded-full transition-all"
@@ -1323,9 +1323,9 @@ const RapportFinancier = () => {
                                 backgroundColor: COLORS[index % COLORS.length],
                               }}
                             />
-                          </div>
+                </div>
                           <p className="text-xs text-gray-500 mt-1">{percentage.toFixed(1)}% du CA</p>
-                        </div>
+        </div>
                       );
                     })}
                 </div>
@@ -1344,7 +1344,7 @@ const RapportFinancier = () => {
                   <CardTitle className="flex items-center gap-2 text-gray-900">
                     <AlertCircle className="h-5 w-5 text-red-600" />
                     Factures en retard
-                  </CardTitle>
+                </CardTitle>
                   <Badge className="bg-red-500/20 text-red-700 border-red-500/30">
                     {topFacturesEnRetard.length}
                   </Badge>
@@ -1364,9 +1364,9 @@ const RapportFinancier = () => {
                             <div className="flex items-center gap-2 mb-1.5">
                               <Badge className="bg-red-500/20 text-red-700 border-red-500/30 text-xs shrink-0 w-6 h-6 flex items-center justify-center p-0">
                                 {index + 1}
-                              </Badge>
+                        </Badge>
                               <span className="font-semibold text-sm text-gray-900 truncate">{facture.numero}</span>
-                            </div>
+                      </div>
                             <p className="text-xs font-medium text-gray-800 truncate mb-1">{facture.clientNom}</p>
                             <div className="flex items-center gap-2 text-xs text-gray-600">
                               <span>{format(parseISO(facture.date), "d MMM yyyy", { locale: fr })}</span>
@@ -1375,21 +1375,21 @@ const RapportFinancier = () => {
                                   <span className="text-gray-400">•</span>
                                   <span className="text-red-600 font-semibold">
                                     Échéance: {format(parseISO(facture.dateEcheance), "d MMM", { locale: fr })}
-                                  </span>
+                        </span>
                                 </>
                               )}
-                            </div>
-                          </div>
+                      </div>
+                    </div>
                           <div className="flex flex-col items-end gap-1 shrink-0">
                             <span className="font-bold text-lg text-gray-900 group-hover:text-red-600 transition-colors">
                               {facture.montantTTC.toLocaleString()} €
                             </span>
                             <span className="text-xs text-red-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
                               Voir →
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                      </span>
+                    </div>
+                  </div>
+                </div>
                     ))}
                   </div>
                 ) : (
@@ -1408,7 +1408,7 @@ const RapportFinancier = () => {
                   <CardTitle className="flex items-center gap-2 text-gray-900">
                     <FileText className="h-5 w-5 text-blue-600" />
                     Devis acceptés non facturés
-                  </CardTitle>
+                </CardTitle>
                   <Badge className="bg-blue-500/20 text-blue-700 border-blue-500/30">
                     {topDevisAcceptes.length}
                   </Badge>
@@ -1435,9 +1435,9 @@ const RapportFinancier = () => {
                             <div className="flex items-center gap-2 mb-1.5">
                               <Badge className="bg-blue-500/20 text-blue-700 border-blue-500/30 text-xs shrink-0 w-6 h-6 flex items-center justify-center p-0">
                                 {index + 1}
-                              </Badge>
+                        </Badge>
                               <span className="font-semibold text-sm text-gray-900 truncate">{devis.numero}</span>
-                            </div>
+                      </div>
                             <p className="text-xs font-medium text-gray-800 truncate mb-1">{devis.clientNom}</p>
                             <div className="flex items-center gap-2 text-xs text-gray-600">
                               <span>{format(parseISO(devis.date), "d MMM yyyy", { locale: fr })}</span>
@@ -1452,15 +1452,15 @@ const RapportFinancier = () => {
                           <div className="flex flex-col items-end gap-1 shrink-0">
                             <span className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
                               {devis.montantTTC.toLocaleString()} €
-                            </span>
+                        </span>
                             <div className="flex items-center gap-1 text-xs text-blue-600 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
                               <Plus className="h-3 w-3" />
                               <span>Créer facture</span>
                             </div>
                           </div>
-                        </div>
                       </div>
-                    ))}
+                    </div>
+                  ))}
                   </div>
                 ) : (
                   <div className="p-8 text-center text-gray-400">
@@ -1477,7 +1477,7 @@ const RapportFinancier = () => {
         <BlurFade inView delay={0.25}>
           <Card className="border border-blue-200/50 bg-white text-gray-900 shadow-lg">
             <CardHeader className="pb-3 border-b border-blue-200/50 bg-blue-50/30">
-              <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Receipt className="h-5 w-5 text-blue-600" />
                   <div>
@@ -1488,8 +1488,8 @@ const RapportFinancier = () => {
                         {facturesFiltrees.length > 10 && ` (10 affichées)`}
                       </p>
                     )}
+                    </div>
                   </div>
-                </div>
                 <Button
                   onClick={handleExportCSV}
                   size="sm"
@@ -1498,7 +1498,7 @@ const RapportFinancier = () => {
                   <Download className="h-4 w-4 mr-2" />
                   Exporter CSV
                 </Button>
-              </div>
+                </div>
             </CardHeader>
             <CardContent className="p-0">
               {facturesFiltrees.length === 0 ? (
@@ -1568,9 +1568,9 @@ const RapportFinancier = () => {
                   )}
                 </>
               )}
-            </CardContent>
-          </Card>
-        </BlurFade>
+              </CardContent>
+            </Card>
+          </BlurFade>
       </div>
     </DashboardLayout>
   );

@@ -188,10 +188,11 @@ function KanbanColumn({
 }
 
 // Composant pour les cartes sortables du Kanban
-function SortableDevisCard({ devis, onEdit, onSend }: { 
+function SortableDevisCard({ devis, onEdit, onSend, onDelete }: { 
   devis: Devis; 
   onEdit: (devis: Devis) => void;
   onSend: (devisId: string) => void;
+  onDelete: (devisId: string, devisNumero: string) => void;
 }) {
   const {
     attributes,
@@ -272,6 +273,18 @@ function SortableDevisCard({ devis, onEdit, onSend }: {
                   <Send className="h-3 w-3" />
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(devis.id, devis.numero);
+                }}
+                className="h-7 px-2 text-xs hover:bg-red-50 text-red-600"
+                title="Supprimer le devis"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -309,6 +322,11 @@ const Devis = () => {
   const [formRemiseType, setFormRemiseType] = useState<"pourcent" | "montant">("pourcent");
   const [formCommentaires, setFormCommentaires] = useState("");
   const [formStatut, setFormStatut] = useState<Devis["statut"]>("brouillon");
+
+  // États pour la progression de création
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState("");
 
   // Charger les clients depuis Supabase
   useEffect(() => {
@@ -443,7 +461,7 @@ const Devis = () => {
 
   // Fonction pour générer le PDF (ne s'exécute que si URL fournie)
   const generateDevisPDF = async (devisId: string) => {
-    const MAKE_GENERATE_URL = import.meta.env.VITE_MAKE_GENERATE_URL || "";
+    const MAKE_GENERATE_URL = "https://hook.eu2.make.com/43oaprigwnfqgmqr1s1934dg4sb8cb67";
     
     if (!MAKE_GENERATE_URL) {
       return; // Ne rien faire si l'URL n'est pas configurée
@@ -697,7 +715,7 @@ const Devis = () => {
 
     if (!over) return;
 
-    const devisId = active.id;
+    const devisId = String(active.id);
     
     // Détecter le statut cible : over.id peut être le statut de la colonne ou l'id d'une carte
     let newStatut: Devis["statut"] | null = null;
@@ -710,7 +728,7 @@ const Devis = () => {
       newStatut = over.id as Devis["statut"];
     } else {
       // Sinon, trouver dans quelle colonne se trouve la carte over
-      const overDevis = devis.find(d => d.id === over.id);
+      const overDevis = devis.find(d => d.id === String(over.id));
       if (overDevis) {
         newStatut = overDevis.statut;
       } else {
@@ -781,6 +799,7 @@ const Devis = () => {
       totalTTC,
     };
   };
+
 
   const totaux = calculerTotaux();
 
@@ -880,6 +899,105 @@ const Devis = () => {
     console.log("Transformer devis en facture", devisId);
   };
 
+  // Fonction pour supprimer un devis
+  const handleDeleteDevis = async (devisId: string, devisNumero: string) => {
+    try {
+      // 1. Mettre à jour IMMÉDIATEMENT la liste locale pour que le devis disparaisse tout de suite
+      setDevis(prev => {
+        const filtered = prev.filter(d => d.id !== devisId);
+        console.log('Devis supprimé localement. Avant:', prev.length, 'Après:', filtered.length);
+        return filtered;
+      });
+
+      // 2. Supprimer les lignes associées en arrière-plan
+      const { error: lignesError } = await supabase
+        .from('lignes_devis')
+        .delete()
+        .eq('devis_id', devisId);
+
+      if (lignesError) {
+        console.warn('Attention lors de la suppression des lignes:', lignesError);
+      }
+
+      // 3. Supprimer le devis dans Supabase
+      const { error: devisError } = await supabase
+        .from('devis')
+        .delete()
+        .eq('id', devisId);
+
+      if (devisError) {
+        console.error('Erreur Supabase lors de la suppression:', devisError);
+        // Recharger les devis depuis Supabase pour restaurer la liste correcte
+        const { data: devisData } = await supabase
+          .from('devis')
+          .select(`
+            *,
+            clients:client_id (id, nom, email, telephone),
+            vehicules:vehicule_id (id, immatriculation, marque, modele)
+          `)
+          .order('date', { ascending: false });
+
+        if (devisData) {
+          const devisWithLignes = await Promise.all(
+            devisData.map(async (d: any) => {
+              const { data: lignesData } = await supabase
+                .from('lignes_devis')
+                .select('*')
+                .eq('devis_id', d.id)
+                .order('ordre');
+
+              const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
+              const vehicule = Array.isArray(d.vehicules) ? d.vehicules[0] : d.vehicules;
+
+              return {
+                id: d.id,
+                numero: d.numero,
+                date: d.date,
+                clientId: d.client_id,
+                clientNom: client?.nom || '',
+                vehiculeId: d.vehicule_id,
+                vehiculeImmat: vehicule?.immatriculation || '',
+                montantHT: Number(d.montant_ht),
+                montantTTC: Number(d.montant_ttc),
+                tva: Number(d.tva),
+                remise: Number(d.remise),
+                remiseType: d.remise_type,
+                statut: d.statut,
+                lignes: (lignesData || []).map((l: any) => ({
+                  id: l.id,
+                  type: l.type,
+                  designation: l.designation,
+                  reference: l.reference || undefined,
+                  quantite: Number(l.quantite),
+                  temps: l.temps ? Number(l.temps) : undefined,
+                  prixUnitaireHT: Number(l.prix_unitaire_ht),
+                  tauxTVA: Number(l.taux_tva),
+                  totalHT: Number(l.total_ht),
+                })),
+                commentaires: d.commentaires || undefined,
+                pdf_url: d.pdf_url || undefined,
+              };
+            })
+          );
+
+          setDevis(devisWithLignes);
+        }
+        
+        throw new Error(`Erreur de suppression: ${devisError.message || 'Vérifiez les permissions RLS dans Supabase'}`);
+      }
+      
+      toast.success("Devis supprimé", {
+        description: `Le devis ${devisNumero} a été supprimé avec succès`,
+      });
+    } catch (error: any) {
+      console.error('Erreur complète lors de la suppression:', error);
+      toast.error("Erreur lors de la suppression", {
+        description: error.message || "Impossible de supprimer le devis. Vérifiez la console pour plus de détails.",
+        duration: 5000,
+      });
+    }
+  };
+
   const handleSauvegarder = async () => {
     if (!formClientId || !formVehiculeId || formLignes.length === 0) {
       toast.error("Données incomplètes", {
@@ -888,24 +1006,35 @@ const Devis = () => {
       return;
     }
 
+    // Si c'est une édition, utiliser l'ancienne logique (sans progression)
+    if (isEditSheetOpen) {
+      // TODO: Implémenter la logique d'édition si nécessaire
+      toast.error("Édition", {
+        description: "L'édition des devis n'est pas encore implémentée.",
+      });
+      return;
+    }
+
+    // Si c'est une création, utiliser la logique avec progression
     try {
-      // Trouver le client et le véhicule pour obtenir les données complètes
+      setIsGenerating(true);
+      setProgress(0);
+      setStatusMessage("Création de votre devis en cours…");
+
       const client = clients.find(c => c.id === formClientId);
       const vehicule = vehicules.find(v => v.id === formVehiculeId);
       
       if (!client || !vehicule) {
-        toast.error("Erreur", { description: "Client ou véhicule introuvable." });
-        return;
+        throw new Error("Client ou véhicule introuvable.");
       }
 
       const totaux = calculerTotaux();
-      
-      // Générer un numéro de devis unique
       const numeroDevis = `DEV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
 
-      // Préparer les données pour Supabase
+      // 1. Créer le devis dans Supabase avec statut "brouillon"
       const devisData = {
         numero: numeroDevis,
+        date: new Date().toISOString().split("T")[0],
         client_id: formClientId,
         vehicule_id: formVehiculeId,
         montant_ht: totaux.totalHTAvecRemise,
@@ -914,22 +1043,21 @@ const Devis = () => {
         remise: formRemise,
         remise_type: formRemiseType,
         statut: "brouillon" as const,
-        lignes: formLignes,
         commentaires: formCommentaires || null,
+        pdf_url: null,
       };
 
-      // Enregistrer dans Supabase
       const { data: insertedDevis, error: insertError } = await supabase
         .from('devis')
         .insert([devisData])
         .select()
         .single();
 
-      if (insertError) {
-        throw insertError;
+      if (insertError || !insertedDevis) {
+        throw new Error("Erreur lors de la création du devis.");
       }
 
-      // Enregistrer les lignes dans lignes_devis
+      // 2. Insérer les lignes
       if (formLignes.length > 0) {
         const lignesData = formLignes.map((ligne, index) => ({
           devis_id: insertedDevis.id,
@@ -949,84 +1077,563 @@ const Devis = () => {
           .insert(lignesData);
 
         if (lignesError) {
-          console.error('Erreur lors de l\'enregistrement des lignes:', lignesError);
-          // Ne pas bloquer, le devis est déjà créé
+          throw new Error("Erreur lors de l'insertion des lignes de devis.");
         }
       }
 
-      // Recharger les devis
-      const { data: newDevisData } = await supabase
-        .from('devis')
-        .select(`
-          *,
-          clients:client_id (id, nom, email, telephone),
-          vehicules:vehicule_id (id, immatriculation, marque, modele)
-        `)
-        .eq('id', insertedDevis.id)
-        .single();
+      // 3. Animation de progression améliorée pendant l'appel webhook
+      setProgress(10);
+      setStatusMessage("Devis en création...");
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setProgress(25);
+      setStatusMessage("Devis en création...");
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      setProgress(40);
+      setStatusMessage("Devis en création...");
+      
+      await new Promise(resolve => setTimeout(resolve, 400));
+      
+      let currentProgress = 40;
+      const interval = setInterval(() => {
+        currentProgress += 3;
+        if (currentProgress < 90) {
+          setProgress(currentProgress);
+          if (currentProgress < 60) {
+            setStatusMessage("Devis en création...");
+          } else if (currentProgress < 80) {
+            setStatusMessage("Devis en création...");
+          } else {
+            setStatusMessage("Devis en création...");
+          }
+        } else {
+          clearInterval(interval);
+          setProgress(90);
+          setStatusMessage("Devis en création...");
+        }
+      }, 150);
 
-      if (newDevisData) {
-        const { data: lignesData } = await supabase
-          .from('lignes_devis')
-          .select('*')
-          .eq('devis_id', insertedDevis.id)
-          .order('ordre');
+      // 4. Appel webhook
+      const WEBHOOK_URL = "https://hook.eu2.make.com/43oaprigwnfqgmqr1s1934dg4sb8cb67";
+      
+      if (!WEBHOOK_URL) {
+        clearInterval(interval);
+        setIsGenerating(false);
+        setProgress(0);
+        setStatusMessage("");
+        
+        // Recharger les devis
+        const { data: newDevisData } = await supabase
+          .from('devis')
+          .select(`
+            *,
+            clients:client_id (id, nom, email, telephone),
+            vehicules:vehicule_id (id, immatriculation, marque, modele)
+          `)
+          .eq('id', insertedDevis.id)
+          .single();
 
-        const client = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
-        const vehicule = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
+        if (newDevisData) {
+          const { data: lignesData } = await supabase
+            .from('lignes_devis')
+            .select('*')
+            .eq('devis_id', insertedDevis.id)
+            .order('ordre');
 
-        const newDevis: Devis = {
-          id: newDevisData.id,
-          numero: newDevisData.numero,
-          date: newDevisData.date,
-          clientId: newDevisData.client_id,
-          clientNom: client?.nom || '',
-          vehiculeId: newDevisData.vehicule_id,
-          vehiculeImmat: vehicule?.immatriculation || '',
-          montantHT: Number(newDevisData.montant_ht),
-          montantTTC: Number(newDevisData.montant_ttc),
-          tva: Number(newDevisData.tva),
-          remise: Number(newDevisData.remise),
-          remiseType: newDevisData.remise_type,
-          statut: newDevisData.statut,
-          lignes: (lignesData || []).map((l: any) => ({
-            id: l.id,
-            type: l.type,
-            designation: l.designation,
-            reference: l.reference || undefined,
-            quantite: Number(l.quantite),
-            temps: l.temps ? Number(l.temps) : undefined,
-            prixUnitaireHT: Number(l.prix_unitaire_ht),
-            tauxTVA: Number(l.taux_tva),
-            totalHT: Number(l.total_ht),
-          })),
-          commentaires: newDevisData.commentaires || undefined,
-          pdf_url: newDevisData.pdf_url || undefined,
-        };
+          const clientReload = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
+          const vehiculeReload = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
 
-        setDevis(prev => [newDevis, ...prev]);
+          const newDevis: Devis = {
+            id: newDevisData.id,
+            numero: newDevisData.numero,
+            date: newDevisData.date,
+            clientId: newDevisData.client_id,
+            clientNom: clientReload?.nom || '',
+            vehiculeId: newDevisData.vehicule_id,
+            vehiculeImmat: vehiculeReload?.immatriculation || '',
+            montantHT: Number(newDevisData.montant_ht),
+            montantTTC: Number(newDevisData.montant_ttc),
+            tva: Number(newDevisData.tva),
+            remise: Number(newDevisData.remise),
+            remiseType: newDevisData.remise_type,
+            statut: newDevisData.statut,
+            lignes: (lignesData || []).map((l: any) => ({
+              id: l.id,
+              type: l.type,
+              designation: l.designation,
+              reference: l.reference || undefined,
+              quantite: Number(l.quantite),
+              temps: l.temps ? Number(l.temps) : undefined,
+              prixUnitaireHT: Number(l.prix_unitaire_ht),
+              tauxTVA: Number(l.taux_tva),
+              totalHT: Number(l.total_ht),
+            })),
+            commentaires: newDevisData.commentaires || undefined,
+            pdf_url: newDevisData.pdf_url || undefined,
+          };
+
+          setDevis(prev => [newDevis, ...prev]);
+        }
+
+        toast.success("Devis créé", {
+          description: "Le devis a été créé (génération PDF non configurée).",
+        });
+        setIsCreateSheetOpen(false);
+        setFormClientId("");
+        setFormVehiculeId("");
+        setFormLignes([]);
+        setFormRemise(0);
+        setFormRemiseType("pourcent");
+        setFormCommentaires("");
+        setFormStatut("brouillon");
+        return;
       }
 
-      // Appeler generateDevisPDF en arrière-plan (ne bloque pas l'utilisateur)
-      generateDevisPDF(insertedDevis.id).catch(err => {
-        console.error('Erreur génération PDF:', err);
+      const webhookPayload = {
+        devisId: insertedDevis.id,
+        numeroDevis: numeroDevis,
+        client: {
+          id: client.id,
+          nom: client.nom,
+          email: client.email,
+          telephone: client.telephone,
+        },
+        vehicule: {
+          id: vehicule.id,
+          immatriculation: vehicule.immatriculation,
+          marque: vehicule.marque,
+          modele: vehicule.modele,
+        },
+        lignes: formLignes,
+        totaux: {
+          sousTotalPrestations: totaux.sousTotalPrestations,
+          sousTotalPieces: totaux.sousTotalPieces,
+          totalHT: totaux.totalHTAvecRemise,
+          tva: totaux.tva,
+          remise: formRemise,
+          remiseType: formRemiseType,
+          totalTTC: totaux.totalTTC,
+        },
+        commentaires: formCommentaires,
+      };
+
+      console.log('Appel webhook vers:', WEBHOOK_URL);
+      console.log('Payload webhook:', webhookPayload);
+
+      const webhookRes = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(webhookPayload),
       });
 
-      // Fermer le sheet sans message
-      setIsCreateSheetOpen(false);
-      setIsEditSheetOpen(false);
+      console.log('Réponse webhook - Status:', webhookRes.status, 'OK:', webhookRes.ok);
+
+      clearInterval(interval);
+      setProgress(95);
+      setStatusMessage("Devis en création...");
+
+      if (!webhookRes.ok) {
+        // Gestion spécifique de l'erreur 410 (webhook supprimé/expiré)
+        if (webhookRes.status === 410) {
+          setProgress(0);
+          setIsGenerating(false);
+          setStatusMessage("");
+          
+          // Le devis est déjà créé dans Supabase, on peut continuer sans le PDF
+          const { data: newDevisData } = await supabase
+            .from('devis')
+            .select(`
+              *,
+              clients:client_id (id, nom, email, telephone),
+              vehicules:vehicule_id (id, immatriculation, marque, modele)
+            `)
+            .eq('id', insertedDevis.id)
+            .single();
+
+          if (newDevisData) {
+            const { data: lignesData } = await supabase
+              .from('lignes_devis')
+              .select('*')
+              .eq('devis_id', insertedDevis.id)
+              .order('ordre');
+
+            const clientReload = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
+            const vehiculeReload = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
+
+            const newDevis: Devis = {
+              id: newDevisData.id,
+              numero: newDevisData.numero,
+              date: newDevisData.date,
+              clientId: newDevisData.client_id,
+              clientNom: clientReload?.nom || '',
+              vehiculeId: newDevisData.vehicule_id,
+              vehiculeImmat: vehiculeReload?.immatriculation || '',
+              montantHT: Number(newDevisData.montant_ht),
+              montantTTC: Number(newDevisData.montant_ttc),
+              tva: Number(newDevisData.tva),
+              remise: Number(newDevisData.remise),
+              remiseType: newDevisData.remise_type,
+              statut: newDevisData.statut,
+              lignes: (lignesData || []).map((l: any) => ({
+                id: l.id,
+                type: l.type,
+                designation: l.designation,
+                reference: l.reference || undefined,
+                quantite: Number(l.quantite),
+                temps: l.temps ? Number(l.temps) : undefined,
+                prixUnitaireHT: Number(l.prix_unitaire_ht),
+                tauxTVA: Number(l.taux_tva),
+                totalHT: Number(l.total_ht),
+              })),
+              commentaires: newDevisData.commentaires || undefined,
+              pdf_url: newDevisData.pdf_url || undefined,
+            };
+
+            setDevis(prev => [newDevis, ...prev]);
+          }
+
+          setIsCreateSheetOpen(false);
+          setFormClientId("");
+          setFormVehiculeId("");
+          setFormLignes([]);
+          setFormRemise(0);
+          setFormRemiseType("pourcent");
+          setFormCommentaires("");
+          setFormStatut("brouillon");
+
+          toast.warning("Devis créé mais PDF non généré", {
+            description: "Le webhook Make.com n'est plus disponible. Le devis a été créé mais le PDF n'a pas pu être généré. Veuillez vérifier l'URL du webhook dans vos paramètres.",
+          });
+          return;
+        }
+        
+        // Autres erreurs HTTP
+        throw new Error(`Erreur HTTP: ${webhookRes.status} - ${webhookRes.statusText || "Le webhook n'est pas disponible"}`);
+      }
+
+      // Essayer de parser la réponse en JSON, sinon traiter comme texte
+      let webhookData;
+      const contentType = webhookRes.headers.get('content-type');
       
-      // Réinitialiser le formulaire
-      setFormClientId("");
-      setFormVehiculeId("");
-      setFormLignes([]);
-      setFormRemise(0);
-      setFormRemiseType("pourcent");
-      setFormCommentaires("");
-      setFormStatut("brouillon");
+      try {
+        if (contentType && contentType.includes('application/json')) {
+          webhookData = await webhookRes.json();
+        } else {
+          // Si la réponse est du texte (comme "Accepted"), on considère que c'est un succès
+          const textResponse = await webhookRes.text();
+          console.log('Réponse webhook (texte):', textResponse);
+          
+          // Si le webhook répond "Accepted" ou un message similaire, on considère que c'est accepté
+          if (textResponse.toLowerCase().includes('accepted') || textResponse.toLowerCase().includes('ok')) {
+            // Le webhook a accepté la requête, on démarre le polling pour vérifier si le PDF a été généré
+            setProgress(92);
+            setStatusMessage("Devis en création...");
+            
+            // Fonction de polling pour vérifier si le PDF a été généré
+            const pollForPdf = async (maxAttempts: number = 30) => {
+              let attempts = 0;
+              
+              const pollInterval = setInterval(async () => {
+                attempts++;
+                
+                // Vérifier si le PDF a été généré dans Supabase
+                const { data: updatedDevis, error: checkError } = await supabase
+                  .from('devis')
+                  .select('pdf_url, statut')
+                  .eq('id', insertedDevis.id)
+                  .single();
+                
+                if (checkError) {
+                  console.error('Erreur lors de la vérification du PDF:', checkError);
+                }
+                
+                // Afficher le progrès du polling
+                const pollingProgress = 92 + Math.min((attempts / maxAttempts) * 6, 6);
+                setProgress(Math.min(pollingProgress, 98));
+                setStatusMessage(`Devis en création... (${attempts}/${maxAttempts})`);
+                
+                if (updatedDevis?.pdf_url) {
+                  // Le PDF a été généré ! Arrêter le polling et mettre à jour
+                  clearInterval(pollInterval);
+                  
+                  setProgress(100);
+                  setStatusMessage("PDF généré avec succès ✅");
+                  
+                  // Mettre à jour le statut dans Supabase
+                  await supabase
+                    .from('devis')
+                    .update({ statut: 'généré' })
+                    .eq('id', insertedDevis.id);
+                  
+                  // Attendre un peu pour que l'utilisateur voie le message de succès
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  
+                  // Recharger tous les devis pour mettre à jour la liste
+                  const { data: allDevisData } = await supabase
+                    .from('devis')
+                    .select(`
+                      *,
+                      clients:client_id (id, nom, email, telephone),
+                      vehicules:vehicule_id (id, immatriculation, marque, modele)
+                    `)
+                    .order('date', { ascending: false });
+
+                  if (allDevisData) {
+                    const devisWithLignes = await Promise.all(
+                      allDevisData.map(async (d: any) => {
+                        const { data: lignesData } = await supabase
+                          .from('lignes_devis')
+                          .select('*')
+                          .eq('devis_id', d.id)
+                          .order('ordre');
+
+                        const clientReload = Array.isArray(d.clients) ? d.clients[0] : d.clients;
+                        const vehiculeReload = Array.isArray(d.vehicules) ? d.vehicules[0] : d.vehicules;
+
+                        return {
+                          id: d.id,
+                          numero: d.numero,
+                          date: d.date,
+                          clientId: d.client_id,
+                          clientNom: clientReload?.nom || '',
+                          vehiculeId: d.vehicule_id,
+                          vehiculeImmat: vehiculeReload?.immatriculation || '',
+                          montantHT: Number(d.montant_ht),
+                          montantTTC: Number(d.montant_ttc),
+                          tva: Number(d.tva),
+                          remise: Number(d.remise),
+                          remiseType: d.remise_type,
+                          statut: d.statut,
+                          lignes: (lignesData || []).map((l: any) => ({
+                            id: l.id,
+                            type: l.type,
+                            designation: l.designation,
+                            reference: l.reference || undefined,
+                            quantite: Number(l.quantite),
+                            temps: l.temps ? Number(l.temps) : undefined,
+                            prixUnitaireHT: Number(l.prix_unitaire_ht),
+                            tauxTVA: Number(l.taux_tva),
+                            totalHT: Number(l.total_ht),
+                          })),
+                          commentaires: d.commentaires || undefined,
+                          pdf_url: d.pdf_url || undefined,
+                        };
+                      })
+                    );
+
+                    setDevis(devisWithLignes);
+                  }
+
+                  setIsGenerating(false);
+                  setProgress(0);
+                  setStatusMessage("");
+                  setIsCreateSheetOpen(false);
+                  
+                  setFormClientId("");
+                  setFormVehiculeId("");
+                  setFormLignes([]);
+                  setFormRemise(0);
+                  setFormRemiseType("pourcent");
+                  setFormCommentaires("");
+                  setFormStatut("brouillon");
+
+                  toast.success("Devis créé et PDF généré", {
+                    description: "Le devis a été créé et le PDF généré avec succès. Il est disponible dans la colonne 'Devis généré'.",
+                  });
+                } else if (attempts >= maxAttempts) {
+                  // Timeout : le PDF n'a pas été généré dans le temps imparti
+                  clearInterval(pollInterval);
+                  
+                  setProgress(95);
+                  setStatusMessage("Devis créé mais PDF non encore disponible");
+                  
+                  // Recharger quand même les devis pour afficher le devis créé
+                  const { data: newDevisData } = await supabase
+                    .from('devis')
+                    .select(`
+                      *,
+                      clients:client_id (id, nom, email, telephone),
+                      vehicules:vehicule_id (id, immatriculation, marque, modele)
+                    `)
+                    .eq('id', insertedDevis.id)
+                    .single();
+
+                  if (newDevisData) {
+                    const { data: lignesData } = await supabase
+                      .from('lignes_devis')
+                      .select('*')
+                      .eq('devis_id', insertedDevis.id)
+                      .order('ordre');
+
+                    const clientReload = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
+                    const vehiculeReload = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
+
+                    const newDevis: Devis = {
+                      id: newDevisData.id,
+                      numero: newDevisData.numero,
+                      date: newDevisData.date,
+                      clientId: newDevisData.client_id,
+                      clientNom: clientReload?.nom || '',
+                      vehiculeId: newDevisData.vehicule_id,
+                      vehiculeImmat: vehiculeReload?.immatriculation || '',
+                      montantHT: Number(newDevisData.montant_ht),
+                      montantTTC: Number(newDevisData.montant_ttc),
+                      tva: Number(newDevisData.tva),
+                      remise: Number(newDevisData.remise),
+                      remiseType: newDevisData.remise_type,
+                      statut: newDevisData.statut,
+                      lignes: (lignesData || []).map((l: any) => ({
+                        id: l.id,
+                        type: l.type,
+                        designation: l.designation,
+                        reference: l.reference || undefined,
+                        quantite: Number(l.quantite),
+                        temps: l.temps ? Number(l.temps) : undefined,
+                        prixUnitaireHT: Number(l.prix_unitaire_ht),
+                        tauxTVA: Number(l.taux_tva),
+                        totalHT: Number(l.total_ht),
+                      })),
+                      commentaires: newDevisData.commentaires || undefined,
+                      pdf_url: newDevisData.pdf_url || undefined,
+                    };
+
+                    setDevis(prev => {
+                      const filtered = prev.filter(d => d.id !== insertedDevis.id);
+                      return [newDevis, ...filtered];
+                    });
+                  }
+
+                  setIsGenerating(false);
+                  setProgress(0);
+                  setStatusMessage("");
+                  setIsCreateSheetOpen(false);
+                  
+                  setFormClientId("");
+                  setFormVehiculeId("");
+                  setFormLignes([]);
+                  setFormRemise(0);
+                  setFormRemiseType("pourcent");
+                  setFormCommentaires("");
+                  setFormStatut("brouillon");
+
+                  toast.info("Devis créé", {
+                    description: "Le devis a été créé. Le PDF sera généré automatiquement et apparaîtra dans la colonne 'Devis généré'.",
+                  });
+                }
+              }, 2000); // Vérifier toutes les 2 secondes
+            };
+            
+            // Démarrer le polling
+            pollForPdf(30); // Maximum 30 tentatives (60 secondes)
+            return;
+          } else {
+            // Réponse texte inattendue
+            throw new Error(`Réponse inattendue du webhook: ${textResponse}`);
+          }
+        }
+      } catch (parseError) {
+        // Si le parsing échoue, on relance l'erreur
+        console.error('Erreur parsing réponse webhook:', parseError);
+        throw new Error(`Impossible de parser la réponse du webhook: ${parseError}`);
+      }
+
+      // 5. Si succès avec JSON, mettre à jour le devis
+      if (webhookData && webhookData.status === 'success' && webhookData.devisPdfUrl) {
+        setProgress(100);
+        setStatusMessage("Devis créé ✅");
+
+        await supabase
+          .from('devis')
+          .update({
+            statut: 'généré',
+            pdf_url: webhookData.devisPdfUrl,
+          })
+          .eq('id', insertedDevis.id);
+
+        // Attendre un peu pour afficher le message
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Recharger les devis
+        const { data: newDevisData } = await supabase
+          .from('devis')
+          .select(`
+            *,
+            clients:client_id (id, nom, email, telephone),
+            vehicules:vehicule_id (id, immatriculation, marque, modele)
+          `)
+          .eq('id', insertedDevis.id)
+          .single();
+
+        if (newDevisData) {
+          const { data: lignesData } = await supabase
+            .from('lignes_devis')
+            .select('*')
+            .eq('devis_id', insertedDevis.id)
+            .order('ordre');
+
+          const clientReload = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
+          const vehiculeReload = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
+
+          const newDevis: Devis = {
+            id: newDevisData.id,
+            numero: newDevisData.numero,
+            date: newDevisData.date,
+            clientId: newDevisData.client_id,
+            clientNom: clientReload?.nom || '',
+            vehiculeId: newDevisData.vehicule_id,
+            vehiculeImmat: vehiculeReload?.immatriculation || '',
+            montantHT: Number(newDevisData.montant_ht),
+            montantTTC: Number(newDevisData.montant_ttc),
+            tva: Number(newDevisData.tva),
+            remise: Number(newDevisData.remise),
+            remiseType: newDevisData.remise_type,
+            statut: newDevisData.statut,
+            lignes: (lignesData || []).map((l: any) => ({
+              id: l.id,
+              type: l.type,
+              designation: l.designation,
+              reference: l.reference || undefined,
+              quantite: Number(l.quantite),
+              temps: l.temps ? Number(l.temps) : undefined,
+              prixUnitaireHT: Number(l.prix_unitaire_ht),
+              tauxTVA: Number(l.taux_tva),
+              totalHT: Number(l.total_ht),
+            })),
+            commentaires: newDevisData.commentaires || undefined,
+            pdf_url: newDevisData.pdf_url || undefined,
+          };
+
+          setDevis(prev => [newDevis, ...prev]);
+        }
+
+        setIsGenerating(false);
+        setProgress(0);
+        setStatusMessage("");
+        setIsCreateSheetOpen(false);
+        
+        // Réinitialiser le formulaire
+        setFormClientId("");
+        setFormVehiculeId("");
+        setFormLignes([]);
+        setFormRemise(0);
+        setFormRemiseType("pourcent");
+        setFormCommentaires("");
+        setFormStatut("brouillon");
+
+        toast.success("Devis créé", {
+          description: "Le devis a été créé et le PDF généré avec succès.",
+        });
+      } else {
+        throw new Error(webhookData.message || "Erreur côté webhook ou PDF manquant.");
+      }
+
     } catch (error: any) {
-      toast.error("Erreur lors de la sauvegarde", {
-        description: error.message || "Une erreur est survenue.",
+      setIsGenerating(false);
+      setProgress(0);
+      setStatusMessage("");
+      toast.error("Erreur", {
+        description: error.message || "Une erreur est survenue lors de la création du devis.",
       });
     }
   };
@@ -1161,6 +1768,7 @@ const Devis = () => {
                         <th className="text-left py-4 px-6 font-semibold text-gray-700">Véhicule</th>
                         <th className="text-left py-4 px-6 font-semibold text-gray-700">Montant TTC</th>
                         <th className="text-left py-4 px-6 font-semibold text-gray-700">Statut</th>
+                        <th className="text-left py-4 px-6 font-semibold text-gray-700">Devis généré</th>
                         <th className="text-left py-4 px-6 font-semibold text-gray-700 w-40">Actions</th>
                       </tr>
                     </thead>
@@ -1205,6 +1813,22 @@ const Devis = () => {
                           </td>
                           <td className="py-5 px-6">{getStatutBadge(devis.statut)}</td>
                           <td className="py-5 px-6">
+                            {devis.pdf_url ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => window.open(devis.pdf_url, '_blank')}
+                                className="text-blue-600 hover:text-blue-700 border-blue-300 hover:bg-blue-50"
+                                title="Voir le devis généré"
+                              >
+                                <FileText className="mr-2 h-4 w-4" />
+                                Voir PDF
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-gray-400">Non généré</span>
+                            )}
+                          </td>
+                          <td className="py-5 px-6">
                             <div
                               className={`flex items-center gap-3 transition-opacity ${
                                 hoveredDevisId === devis.id ? "opacity-100" : "opacity-0"
@@ -1228,6 +1852,17 @@ const Devis = () => {
                               >
                                 <Copy className="h-4 w-4" />
                               </Button>
+                              {devis.pdf_url && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => sendDevisByEmail(devis.id)}
+                                  className="h-9 w-9 p-0 hover:bg-blue-50"
+                                  title="Envoyer par email"
+                                >
+                                  <Send className="h-4 w-4 text-blue-600" />
+                                </Button>
+                              )}
                               {devis.statut === "accepté" && (
                                 <Button
                                   size="sm"
@@ -1239,6 +1874,18 @@ const Devis = () => {
                                   <Receipt className="h-4 w-4 text-green-600" />
                                 </Button>
                               )}
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteDevis(devis.id, devis.numero);
+                                }}
+                                className="h-9 w-9 p-0 hover:bg-red-50"
+                                title="Supprimer le devis"
+                              >
+                                <Trash2 className="h-4 w-4 text-red-600" />
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -1296,6 +1943,7 @@ const Devis = () => {
                           devis={devis}
                           onEdit={handleEditDevis}
                           onSend={sendDevisByEmail}
+                          onDelete={handleDeleteDevis}
                         />
                       ))}
                       {devisByStatut.brouillon.length === 0 && (
@@ -1325,6 +1973,7 @@ const Devis = () => {
                           devis={devis}
                           onEdit={handleEditDevis}
                           onSend={sendDevisByEmail}
+                          onDelete={handleDeleteDevis}
                         />
                       ))}
                       {devisByStatut.généré.length === 0 && (
@@ -1354,6 +2003,7 @@ const Devis = () => {
                           devis={devis}
                           onEdit={handleEditDevis}
                           onSend={sendDevisByEmail}
+                          onDelete={handleDeleteDevis}
                         />
                       ))}
                       {devisByStatut.envoyé.length === 0 && (
@@ -1383,6 +2033,7 @@ const Devis = () => {
                           devis={devis}
                           onEdit={handleEditDevis}
                           onSend={sendDevisByEmail}
+                          onDelete={handleDeleteDevis}
                         />
                       ))}
                       {devisByStatut.accepté.length === 0 && (
@@ -1412,6 +2063,7 @@ const Devis = () => {
                           devis={devis}
                           onEdit={handleEditDevis}
                           onSend={sendDevisByEmail}
+                          onDelete={handleDeleteDevis}
                         />
                       ))}
                       {devisByStatut.refusé.length === 0 && (
@@ -1441,6 +2093,7 @@ const Devis = () => {
                           devis={devis}
                           onEdit={handleEditDevis}
                           onSend={sendDevisByEmail}
+                          onDelete={handleDeleteDevis}
                         />
                       ))}
                       {devisByStatut["à relancer"].length === 0 && (
@@ -1717,24 +2370,56 @@ const Devis = () => {
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-blue-200/50">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsCreateSheetOpen(false);
-                    setIsEditSheetOpen(false);
-                  }}
-                  className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={handleSauvegarder}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  {isCreateSheetOpen ? "Créer" : "Enregistrer"}
-                </Button>
+              <div className="space-y-4 pt-4 border-t border-blue-200/50">
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsCreateSheetOpen(false);
+                      setIsEditSheetOpen(false);
+                      setIsGenerating(false);
+                      setProgress(0);
+                      setStatusMessage("");
+                    }}
+                    className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
+                    disabled={isGenerating}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    onClick={handleSauvegarder}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={isGenerating}
+                  >
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    {isCreateSheetOpen ? "Créer" : "Enregistrer"}
+                  </Button>
+                </div>
+
+                {/* Barre de progression améliorée */}
+                {isGenerating && (
+                  <div className="mt-6 space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="relative h-4 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                      <div
+                        className="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 transition-all duration-500 ease-out rounded-full relative"
+                        style={{ width: `${progress}%` }}
+                      >
+                        {/* Effet de brillance animé */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-shimmer-slide" />
+                      </div>
+                      {/* Indicateur de pourcentage */}
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span className="text-xs font-bold text-gray-700 drop-shadow-sm">
+                          {Math.round(progress)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      <p className="text-sm font-medium text-gray-700 animate-pulse">{statusMessage}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </SheetContent>

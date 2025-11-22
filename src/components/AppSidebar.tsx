@@ -56,7 +56,7 @@ export function AppSidebar() {
               />
             </div>
             <div className="space-y-1">
-              <h2 className="text-sm font-bold tracking-tight text-gray-900">Sarl LS MECA</h2>
+              <h2 className="text-sm font-bold tracking-tight text-gray-900">LS MECA</h2>
               <p className="text-xs text-gray-600/80">Solution de gestion pour garages</p>
             </div>
           </div>
