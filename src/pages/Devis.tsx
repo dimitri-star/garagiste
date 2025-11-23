@@ -57,6 +57,15 @@ import { fr } from "date-fns/locale/fr";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
   DndContext,
   DragOverlay,
   closestCenter,
@@ -312,6 +321,11 @@ const Devis = () => {
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
+  
+  // États pour la pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5);
+  const [totalDevis, setTotalDevis] = useState(0);
 
   // État du formulaire de devis
   const [formClientId, setFormClientId] = useState<string>("");
@@ -376,74 +390,129 @@ const Devis = () => {
     loadVehicules();
   }, []);
 
+  // Fonction réutilisable pour charger les devis depuis Supabase
+  const loadDevisFromSupabase = async (offset?: number, limit?: number) => {
+    // Construire la requête de base
+    let query = supabase
+      .from('devis')
+      .select(`
+        *,
+        clients:client_id (id, nom, email, telephone),
+        vehicules:vehicule_id (id, immatriculation, marque, modele)
+      `, { count: 'exact' })
+      .order('date', { ascending: false });
+
+    // Appliquer les filtres côté serveur (uniquement en vue liste)
+    if (viewMode === "liste") {
+      // Filtre par statut
+      if (statutFilter !== "all") {
+        query = query.eq('statut', statutFilter);
+      }
+
+      // Filtre par client
+      if (clientFilter !== "all") {
+        query = query.eq('client_id', clientFilter);
+      }
+
+      // Filtre par recherche (sur le numéro, nom client via join, ou immatriculation via join)
+      // Note: Pour la recherche textuelle sur les relations, on devra filtrer côté client
+      // car Supabase ne permet pas facilement de faire des recherches LIKE sur les relations
+    }
+
+    // Ajouter la pagination si spécifiée (uniquement pour la vue liste)
+    if (viewMode === "liste" && offset !== undefined && limit !== undefined) {
+      query = query.range(offset, offset + limit - 1);
+    }
+
+    const { data: devisData, error: devisError, count } = await query;
+
+    if (devisError) {
+      console.error('Erreur chargement devis:', devisError);
+      throw new Error(`Impossible de charger les devis: ${devisError.message}`);
+    }
+
+    // Mettre à jour le total pour la pagination (uniquement en vue liste)
+    if (viewMode === "liste" && count !== null) {
+      setTotalDevis(count);
+    } else if (viewMode === "kanban") {
+      // En vue Kanban, charger tout sans pagination
+      setTotalDevis(devisData?.length || 0);
+    }
+
+    // Charger les lignes pour chaque devis
+    const devisWithLignes = await Promise.all(
+      (devisData || []).map(async (d: any) => {
+        const { data: lignesData } = await supabase
+          .from('lignes_devis')
+          .select('*')
+          .eq('devis_id', d.id)
+          .order('ordre');
+
+        const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
+        const vehicule = Array.isArray(d.vehicules) ? d.vehicules[0] : d.vehicules;
+
+        return {
+          id: d.id,
+          numero: d.numero,
+          date: d.date,
+          clientId: d.client_id,
+          clientNom: client?.nom || '',
+          vehiculeId: d.vehicule_id,
+          vehiculeImmat: vehicule?.immatriculation || '',
+          montantHT: Number(d.montant_ht),
+          montantTTC: Number(d.montant_ttc),
+          tva: Number(d.tva),
+          remise: Number(d.remise),
+          remiseType: d.remise_type,
+          statut: d.statut,
+          lignes: (lignesData || []).map((l: any) => ({
+            id: l.id,
+            type: l.type,
+            designation: l.designation,
+            reference: l.reference || undefined,
+            quantite: Number(l.quantite),
+            temps: l.temps ? Number(l.temps) : undefined,
+            prixUnitaireHT: Number(l.prix_unitaire_ht),
+            tauxTVA: Number(l.taux_tva),
+            totalHT: Number(l.total_ht),
+          })),
+          commentaires: d.commentaires || undefined,
+          pdf_url: d.pdf_url || undefined,
+        };
+      })
+    );
+
+    return devisWithLignes;
+  };
+
   // Charger les devis depuis Supabase
   useEffect(() => {
     const loadDevis = async () => {
       setLoading(true);
-      const { data: devisData, error: devisError } = await supabase
-        .from('devis')
-        .select(`
-          *,
-          clients:client_id (id, nom, email, telephone),
-          vehicules:vehicule_id (id, immatriculation, marque, modele)
-        `)
-        .order('date', { ascending: false });
-
-      if (devisError) {
-        console.error('Erreur chargement devis:', devisError);
-        toast.error('Erreur', { description: 'Impossible de charger les devis' });
+      try {
+        if (viewMode === "liste") {
+          // En vue liste, charger avec pagination
+          const offset = (currentPage - 1) * itemsPerPage;
+          const devisWithLignes = await loadDevisFromSupabase(offset, itemsPerPage);
+          setDevis(devisWithLignes);
+        } else {
+          // En vue Kanban, charger tout sans pagination
+          const devisWithLignes = await loadDevisFromSupabase();
+          setDevis(devisWithLignes);
+        }
+      } catch (error: any) {
+        toast.error('Erreur', { description: error.message || 'Impossible de charger les devis' });
+      } finally {
         setLoading(false);
-        return;
       }
-
-      // Charger les lignes pour chaque devis
-      const devisWithLignes = await Promise.all(
-        (devisData || []).map(async (d: any) => {
-          const { data: lignesData } = await supabase
-            .from('lignes_devis')
-            .select('*')
-            .eq('devis_id', d.id)
-            .order('ordre');
-
-          const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
-          const vehicule = Array.isArray(d.vehicules) ? d.vehicules[0] : d.vehicules;
-
-          return {
-            id: d.id,
-            numero: d.numero,
-            date: d.date,
-            clientId: d.client_id,
-            clientNom: client?.nom || '',
-            vehiculeId: d.vehicule_id,
-            vehiculeImmat: vehicule?.immatriculation || '',
-            montantHT: Number(d.montant_ht),
-            montantTTC: Number(d.montant_ttc),
-            tva: Number(d.tva),
-            remise: Number(d.remise),
-            remiseType: d.remise_type,
-            statut: d.statut,
-            lignes: (lignesData || []).map((l: any) => ({
-              id: l.id,
-              type: l.type,
-              designation: l.designation,
-              reference: l.reference || undefined,
-              quantite: Number(l.quantite),
-              temps: l.temps ? Number(l.temps) : undefined,
-              prixUnitaireHT: Number(l.prix_unitaire_ht),
-              tauxTVA: Number(l.taux_tva),
-              totalHT: Number(l.total_ht),
-            })),
-            commentaires: d.commentaires || undefined,
-            pdf_url: d.pdf_url || undefined,
-          };
-        })
-      );
-
-      setDevis(devisWithLignes);
-      setLoading(false);
     };
     loadDevis();
-  }, []);
+  }, [currentPage, viewMode, statutFilter, clientFilter]);
+
+  // Réinitialiser à la page 1 quand on change de mode de vue ou de filtres
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [viewMode, statutFilter, clientFilter]);
 
   const prestations: Prestation[] = [
     { id: "p1", designation: "Vidange moteur", temps: 0.5, prixHT: 45, categorie: "Entretien" },
@@ -632,19 +701,24 @@ const Devis = () => {
   const getFilteredDevis = () => {
     let filtered = devis;
 
-    // Filtre par statut
-    if (statutFilter !== "all") {
-      filtered = filtered.filter((d) => d.statut === statutFilter);
+    // En vue liste, les filtres statut et client sont déjà appliqués côté serveur
+    // On ne les applique que pour la vue Kanban
+    if (viewMode === "kanban") {
+      // Filtre par statut
+      if (statutFilter !== "all") {
+        filtered = filtered.filter((d) => d.statut === statutFilter);
+      }
+
+      // Filtre par client
+      if (clientFilter !== "all") {
+        filtered = filtered.filter((d) => d.clientId === clientFilter);
+      }
     }
 
-    // Filtre par client
-    if (clientFilter !== "all") {
-      filtered = filtered.filter((d) => d.clientId === clientFilter);
-    }
-
-    // Filtre par recherche
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    // Filtre par recherche (toujours côté client car il concerne les relations)
+    // En vue liste, la recherche filtre uniquement sur les devis de la page actuelle
+    if (searchQuery && searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter(
         (d) =>
           d.numero.toLowerCase().includes(query) ||
@@ -653,6 +727,7 @@ const Devis = () => {
       );
     }
 
+    // En vue liste, retourner tous les devis si pas de recherche (ils sont déjà filtrés côté serveur)
     return filtered;
   };
 
@@ -901,100 +976,177 @@ const Devis = () => {
 
   // Fonction pour supprimer un devis
   const handleDeleteDevis = async (devisId: string, devisNumero: string) => {
+    // Confirmation avant suppression
+    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer le devis ${devisNumero} ? Cette action est irréversible.`)) {
+      return;
+    }
+
     try {
-      // 1. Mettre à jour IMMÉDIATEMENT la liste locale pour que le devis disparaisse tout de suite
-      setDevis(prev => {
-        const filtered = prev.filter(d => d.id !== devisId);
-        console.log('Devis supprimé localement. Avant:', prev.length, 'Après:', filtered.length);
-        return filtered;
-      });
+      console.log('Début suppression devis dans table devis:', { devisId, devisNumero });
 
-      // 2. Supprimer les lignes associées en arrière-plan
-      const { error: lignesError } = await supabase
-        .from('lignes_devis')
-        .delete()
-        .eq('devis_id', devisId);
+      // Supprimer directement le devis dans la table devis
+      // Supabase devrait gérer automatiquement la suppression en cascade des lignes_devis
+      // si la contrainte de clé étrangère est configurée avec ON DELETE CASCADE
+      const { error: devisError, data: deletedData, count } = await supabase
+        .from('devis')
+        .delete({ count: 'exact' })
+        .eq('id', devisId)
+        .select();
 
-      if (lignesError) {
-        console.warn('Attention lors de la suppression des lignes:', lignesError);
+      console.log('Résultat suppression:', { error: devisError, count, deletedData });
+
+      // Si erreur explicite, afficher l'erreur
+      if (devisError) {
+        console.error('Erreur Supabase lors de la suppression du devis:', devisError);
+        
+        // Déterminer le message d'erreur approprié
+        let errorMessage = "Impossible de supprimer le devis.";
+        if (devisError.code === '42501') {
+          errorMessage = "Permissions insuffisantes (RLS). Vérifiez les politiques Row Level Security dans Supabase pour permettre la suppression sur la table 'devis'.";
+        } else if (devisError.code === '23503') {
+          errorMessage = "Le devis ne peut pas être supprimé car il est référencé ailleurs.";
+        } else {
+          errorMessage = `${devisError.message || errorMessage} (Code: ${devisError.code || 'inconnu'})`;
+        }
+
+        throw new Error(errorMessage);
       }
 
-      // 3. Supprimer le devis dans Supabase
-      const { error: devisError } = await supabase
-        .from('devis')
-        .delete()
-        .eq('id', devisId);
-
-      if (devisError) {
-        console.error('Erreur Supabase lors de la suppression:', devisError);
-        // Recharger les devis depuis Supabase pour restaurer la liste correcte
-        const { data: devisData } = await supabase
-          .from('devis')
-          .select(`
-            *,
-            clients:client_id (id, nom, email, telephone),
-            vehicules:vehicule_id (id, immatriculation, marque, modele)
-          `)
-          .order('date', { ascending: false });
-
-        if (devisData) {
-          const devisWithLignes = await Promise.all(
-            devisData.map(async (d: any) => {
-              const { data: lignesData } = await supabase
-                .from('lignes_devis')
-                .select('*')
-                .eq('devis_id', d.id)
-                .order('ordre');
-
-              const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
-              const vehicule = Array.isArray(d.vehicules) ? d.vehicules[0] : d.vehicules;
-
-              return {
-                id: d.id,
-                numero: d.numero,
-                date: d.date,
-                clientId: d.client_id,
-                clientNom: client?.nom || '',
-                vehiculeId: d.vehicule_id,
-                vehiculeImmat: vehicule?.immatriculation || '',
-                montantHT: Number(d.montant_ht),
-                montantTTC: Number(d.montant_ttc),
-                tva: Number(d.tva),
-                remise: Number(d.remise),
-                remiseType: d.remise_type,
-                statut: d.statut,
-                lignes: (lignesData || []).map((l: any) => ({
-                  id: l.id,
-                  type: l.type,
-                  designation: l.designation,
-                  reference: l.reference || undefined,
-                  quantite: Number(l.quantite),
-                  temps: l.temps ? Number(l.temps) : undefined,
-                  prixUnitaireHT: Number(l.prix_unitaire_ht),
-                  tauxTVA: Number(l.taux_tva),
-                  totalHT: Number(l.total_ht),
-                })),
-                commentaires: d.commentaires || undefined,
-                pdf_url: d.pdf_url || undefined,
-              };
-            })
-          );
-
-          setDevis(devisWithLignes);
-        }
+      // Vérifier que la suppression a réellement eu lieu dans la table devis
+      // Si count est 0, c'est que rien n'a été supprimé (probablement RLS qui bloque)
+      if (count === 0) {
+        console.warn('Aucun devis supprimé (count: 0). Vérification de l\'existence...');
         
-        throw new Error(`Erreur de suppression: ${devisError.message || 'Vérifiez les permissions RLS dans Supabase'}`);
+        // Vérifier si le devis existe toujours dans la table devis
+        const { data: stillExists, error: verifyError } = await supabase
+          .from('devis')
+          .select('id, numero')
+          .eq('id', devisId)
+          .maybeSingle();
+
+        if (verifyError) {
+          console.error('Erreur lors de la vérification après suppression:', verifyError);
+          throw new Error("Erreur lors de la vérification de la suppression. Veuillez actualiser la page.");
+        }
+
+        if (stillExists) {
+          // Le devis existe toujours dans la table devis - la suppression a échoué (probablement RLS)
+          console.error(`Le devis ${devisId} (${stillExists.numero}) existe toujours dans la table devis après tentative de suppression.`);
+          throw new Error(`La suppression a échoué. Le devis ${devisNumero} existe toujours dans Supabase. Vérifiez les politiques Row Level Security (RLS) pour la table 'devis' qui bloquent probablement la suppression.`);
+        } else {
+          // Le devis n'existe plus - la suppression a réussi malgré count = 0
+          console.log('Suppression réussie (vérifiée). Le devis n\'existe plus dans la table devis.');
+        }
+      } else if (count > 0) {
+        // count > 0 signifie qu'au moins un devis a été supprimé - succès
+        console.log(`Suppression réussie. ${count} devis supprimé(s) de la table devis.`, deletedData);
+      }
+
+      // 4. Mettre à jour l'UI SEULEMENT après confirmation de succès
+      if (viewMode === "liste") {
+        const currentDevisCount = devis.length;
+        // Si on supprime le dernier devis de la page et qu'on n'est pas sur la première page
+        if (currentDevisCount === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1);
+        } else {
+          // Recharger la page actuelle
+          setLoading(true);
+          try {
+            const offset = (currentPage - 1) * itemsPerPage;
+            const devisWithLignes = await loadDevisFromSupabase(offset, itemsPerPage);
+            setDevis(devisWithLignes);
+          } catch (reloadError: any) {
+            console.error('Erreur lors du rechargement après suppression:', reloadError);
+            setCurrentPage(currentPage); // Force le rechargement via useEffect
+          } finally {
+            setLoading(false);
+          }
+        }
+      } else {
+        // En vue Kanban, recharger tout
+        setLoading(true);
+        try {
+          const devisWithLignes = await loadDevisFromSupabase();
+          setDevis(devisWithLignes);
+        } catch (reloadError: any) {
+          console.error('Erreur lors du rechargement après suppression:', reloadError);
+        } finally {
+          setLoading(false);
+        }
       }
       
+      // 5. Afficher une notification de succès
       toast.success("Devis supprimé", {
-        description: `Le devis ${devisNumero} a été supprimé avec succès`,
+        description: `Le devis ${devisNumero} a été supprimé avec succès.`,
+        duration: 3000,
       });
     } catch (error: any) {
-      console.error('Erreur complète lors de la suppression:', error);
+      console.error('Erreur complète lors de la suppression du devis:', error);
+      
+      // Recharger depuis Supabase pour s'assurer d'avoir l'état le plus récent
+      setLoading(true);
+      try {
+        if (viewMode === "liste") {
+          const offset = (currentPage - 1) * itemsPerPage;
+          const devisWithLignes = await loadDevisFromSupabase(offset, itemsPerPage);
+          setDevis(devisWithLignes);
+        } else {
+          const devisWithLignes = await loadDevisFromSupabase();
+          setDevis(devisWithLignes);
+        }
+      } catch (reloadError: any) {
+        console.error('Erreur lors du rechargement après échec de suppression:', reloadError);
+      } finally {
+        setLoading(false);
+      }
+      
+      // Afficher une notification d'erreur détaillée
       toast.error("Erreur lors de la suppression", {
-        description: error.message || "Impossible de supprimer le devis. Vérifiez la console pour plus de détails.",
-        duration: 5000,
+        description: error.message || "Une erreur inattendue s'est produite. Consultez la console pour plus de détails.",
+        duration: 6000,
       });
+    }
+  };
+
+  // Fonction pour générer le prochain numéro de devis incrémental (DEV-2025-1, DEV-2025-2, etc.)
+  const generateNextDevisNumber = async (year: number): Promise<string> => {
+    try {
+      // Récupérer tous les devis de l'année en cours
+      const { data: devisData, error } = await supabase
+        .from('devis')
+        .select('numero')
+        .like('numero', `DEV-${year}-%`);
+
+      if (error) {
+        console.error('Erreur lors de la récupération des numéros de devis:', error);
+        // En cas d'erreur, utiliser un numéro basé sur le timestamp comme fallback
+        return `DEV-${year}-${String(Date.now()).slice(-6)}`;
+      }
+
+      // Extraire les numéros et trouver le maximum
+      let maxNumber = 0;
+      
+      if (devisData && devisData.length > 0) {
+        devisData.forEach((devis: { numero: string }) => {
+          // Format attendu: DEV-2025-123
+          const match = devis.numero.match(new RegExp(`DEV-${year}-(\\d+)`));
+          if (match && match[1]) {
+            const num = parseInt(match[1], 10);
+            if (!isNaN(num) && num > maxNumber) {
+              maxNumber = num;
+            }
+          }
+        });
+      }
+
+      // Incrémenter pour obtenir le prochain numéro
+      const nextNumber = maxNumber + 1;
+      
+      return `DEV-${year}-${nextNumber}`;
+    } catch (error) {
+      console.error('Erreur lors de la génération du numéro de devis:', error);
+      // Fallback en cas d'erreur
+      return `DEV-${year}-${String(Date.now()).slice(-6)}`;
     }
   };
 
@@ -1019,7 +1171,7 @@ const Devis = () => {
     try {
       setIsGenerating(true);
       setProgress(0);
-      setStatusMessage("Création de votre devis en cours…");
+      setStatusMessage("Préparation des données...");
 
       const client = clients.find(c => c.id === formClientId);
       const vehicule = vehicules.find(v => v.id === formVehiculeId);
@@ -1029,175 +1181,36 @@ const Devis = () => {
       }
 
       const totaux = calculerTotaux();
-      const numeroDevis = `DEV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+      
+      // Générer un numéro de devis incrémental (DEV-2025-1, DEV-2025-2, etc.)
+      setProgress(5);
+      setStatusMessage("Génération du numéro de devis...");
+      
+      const currentYear = new Date().getFullYear();
+      const numeroDevis = await generateNextDevisNumber(currentYear);
 
-      // 1. Créer le devis dans Supabase avec statut "brouillon"
-      const devisData = {
-        numero: numeroDevis,
-        date: new Date().toISOString().split("T")[0],
-        client_id: formClientId,
-        vehicule_id: formVehiculeId,
-        montant_ht: totaux.totalHTAvecRemise,
-        montant_ttc: totaux.totalTTC,
-        tva: totaux.tva,
-        remise: formRemise,
-        remise_type: formRemiseType,
-        statut: "brouillon" as const,
-        commentaires: formCommentaires || null,
-        pdf_url: null,
-      };
+      // Générer un ID pour le devis (sera utilisé dans le webhook et pour créer le devis)
+      const devisId = crypto.randomUUID();
 
-      const { data: insertedDevis, error: insertError } = await supabase
-        .from('devis')
-        .insert([devisData])
-        .select()
-        .single();
-
-      if (insertError || !insertedDevis) {
-        throw new Error("Erreur lors de la création du devis.");
-      }
-
-      // 2. Insérer les lignes
-      if (formLignes.length > 0) {
-        const lignesData = formLignes.map((ligne, index) => ({
-          devis_id: insertedDevis.id,
-          type: ligne.type,
-          designation: ligne.designation,
-          reference: ligne.reference || null,
-          quantite: ligne.quantite,
-          temps: ligne.temps || null,
-          prix_unitaire_ht: ligne.prixUnitaireHT,
-          taux_tva: ligne.tauxTVA,
-          total_ht: ligne.totalHT,
-          ordre: index,
-        }));
-
-        const { error: lignesError } = await supabase
-          .from('lignes_devis')
-          .insert(lignesData);
-
-        if (lignesError) {
-          throw new Error("Erreur lors de l'insertion des lignes de devis.");
-        }
-      }
-
-      // 3. Animation de progression améliorée pendant l'appel webhook
+      // ÉTAPE 1 : Appeler le workflow Make.com D'ABORD (avant de créer le devis)
       setProgress(10);
-      setStatusMessage("Devis en création...");
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setProgress(25);
-      setStatusMessage("Devis en création...");
-      
-      await new Promise(resolve => setTimeout(resolve, 300));
-      setProgress(40);
-      setStatusMessage("Devis en création...");
-      
-      await new Promise(resolve => setTimeout(resolve, 400));
-      
-      let currentProgress = 40;
-      const interval = setInterval(() => {
-        currentProgress += 3;
-        if (currentProgress < 90) {
-          setProgress(currentProgress);
-          if (currentProgress < 60) {
-            setStatusMessage("Devis en création...");
-          } else if (currentProgress < 80) {
-            setStatusMessage("Devis en création...");
-          } else {
-            setStatusMessage("Devis en création...");
-          }
-        } else {
-          clearInterval(interval);
-          setProgress(90);
-          setStatusMessage("Devis en création...");
-        }
-      }, 150);
+      setStatusMessage("Lancement du workflow Make.com...");
 
-      // 4. Appel webhook
       const WEBHOOK_URL = "https://hook.eu2.make.com/43oaprigwnfqgmqr1s1934dg4sb8cb67";
       
       if (!WEBHOOK_URL) {
-        clearInterval(interval);
-        setIsGenerating(false);
-        setProgress(0);
-        setStatusMessage("");
-        
-        // Recharger les devis
-        const { data: newDevisData } = await supabase
-          .from('devis')
-          .select(`
-            *,
-            clients:client_id (id, nom, email, telephone),
-            vehicules:vehicule_id (id, immatriculation, marque, modele)
-          `)
-          .eq('id', insertedDevis.id)
-          .single();
-
-        if (newDevisData) {
-          const { data: lignesData } = await supabase
-            .from('lignes_devis')
-            .select('*')
-            .eq('devis_id', insertedDevis.id)
-            .order('ordre');
-
-          const clientReload = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
-          const vehiculeReload = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
-
-          const newDevis: Devis = {
-            id: newDevisData.id,
-            numero: newDevisData.numero,
-            date: newDevisData.date,
-            clientId: newDevisData.client_id,
-            clientNom: clientReload?.nom || '',
-            vehiculeId: newDevisData.vehicule_id,
-            vehiculeImmat: vehiculeReload?.immatriculation || '',
-            montantHT: Number(newDevisData.montant_ht),
-            montantTTC: Number(newDevisData.montant_ttc),
-            tva: Number(newDevisData.tva),
-            remise: Number(newDevisData.remise),
-            remiseType: newDevisData.remise_type,
-            statut: newDevisData.statut,
-            lignes: (lignesData || []).map((l: any) => ({
-              id: l.id,
-              type: l.type,
-              designation: l.designation,
-              reference: l.reference || undefined,
-              quantite: Number(l.quantite),
-              temps: l.temps ? Number(l.temps) : undefined,
-              prixUnitaireHT: Number(l.prix_unitaire_ht),
-              tauxTVA: Number(l.taux_tva),
-              totalHT: Number(l.total_ht),
-            })),
-            commentaires: newDevisData.commentaires || undefined,
-            pdf_url: newDevisData.pdf_url || undefined,
-          };
-
-          setDevis(prev => [newDevis, ...prev]);
-        }
-
-        toast.success("Devis créé", {
-          description: "Le devis a été créé (génération PDF non configurée).",
-        });
-        setIsCreateSheetOpen(false);
-        setFormClientId("");
-        setFormVehiculeId("");
-        setFormLignes([]);
-        setFormRemise(0);
-        setFormRemiseType("pourcent");
-        setFormCommentaires("");
-        setFormStatut("brouillon");
-        return;
+        throw new Error("URL du webhook Make.com non configurée. Veuillez configurer l'URL du webhook.");
       }
 
+      // Préparer le payload pour le webhook avec le devisId
       const webhookPayload = {
-        devisId: insertedDevis.id,
+        devisId: devisId,
         numeroDevis: numeroDevis,
         client: {
           id: client.id,
           nom: client.nom,
-          email: client.email,
-          telephone: client.telephone,
+          email: client.email || "",
+          telephone: client.telephone || "",
         },
         vehicule: {
           id: vehicule.id,
@@ -1215,417 +1228,205 @@ const Devis = () => {
           remiseType: formRemiseType,
           totalTTC: totaux.totalTTC,
         },
-        commentaires: formCommentaires,
+        commentaires: formCommentaires || "",
       };
 
-      console.log('Appel webhook vers:', WEBHOOK_URL);
-      console.log('Payload webhook:', webhookPayload);
+      console.log('ÉTAPE 1 : Appel du workflow Make.com AVANT création du devis');
+      console.log('URL webhook:', WEBHOOK_URL);
+      console.log('Payload:', JSON.stringify(webhookPayload, null, 2));
 
-      const webhookRes = await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(webhookPayload),
-      });
-
-      console.log('Réponse webhook - Status:', webhookRes.status, 'OK:', webhookRes.ok);
-
-      clearInterval(interval);
-      setProgress(95);
-      setStatusMessage("Devis en création...");
-
-      if (!webhookRes.ok) {
-        // Gestion spécifique de l'erreur 410 (webhook supprimé/expiré)
-        if (webhookRes.status === 410) {
-          setProgress(0);
-          setIsGenerating(false);
-          setStatusMessage("");
-          
-          // Le devis est déjà créé dans Supabase, on peut continuer sans le PDF
-          const { data: newDevisData } = await supabase
-            .from('devis')
-            .select(`
-              *,
-              clients:client_id (id, nom, email, telephone),
-              vehicules:vehicule_id (id, immatriculation, marque, modele)
-            `)
-            .eq('id', insertedDevis.id)
-            .single();
-
-          if (newDevisData) {
-            const { data: lignesData } = await supabase
-              .from('lignes_devis')
-              .select('*')
-              .eq('devis_id', insertedDevis.id)
-              .order('ordre');
-
-            const clientReload = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
-            const vehiculeReload = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
-
-            const newDevis: Devis = {
-              id: newDevisData.id,
-              numero: newDevisData.numero,
-              date: newDevisData.date,
-              clientId: newDevisData.client_id,
-              clientNom: clientReload?.nom || '',
-              vehiculeId: newDevisData.vehicule_id,
-              vehiculeImmat: vehiculeReload?.immatriculation || '',
-              montantHT: Number(newDevisData.montant_ht),
-              montantTTC: Number(newDevisData.montant_ttc),
-              tva: Number(newDevisData.tva),
-              remise: Number(newDevisData.remise),
-              remiseType: newDevisData.remise_type,
-              statut: newDevisData.statut,
-              lignes: (lignesData || []).map((l: any) => ({
-                id: l.id,
-                type: l.type,
-                designation: l.designation,
-                reference: l.reference || undefined,
-                quantite: Number(l.quantite),
-                temps: l.temps ? Number(l.temps) : undefined,
-                prixUnitaireHT: Number(l.prix_unitaire_ht),
-                tauxTVA: Number(l.taux_tva),
-                totalHT: Number(l.total_ht),
-              })),
-              commentaires: newDevisData.commentaires || undefined,
-              pdf_url: newDevisData.pdf_url || undefined,
-            };
-
-            setDevis(prev => [newDevis, ...prev]);
-          }
-
-          setIsCreateSheetOpen(false);
-          setFormClientId("");
-          setFormVehiculeId("");
-          setFormLignes([]);
-          setFormRemise(0);
-          setFormRemiseType("pourcent");
-          setFormCommentaires("");
-          setFormStatut("brouillon");
-
-          toast.warning("Devis créé mais PDF non généré", {
-            description: "Le webhook Make.com n'est plus disponible. Le devis a été créé mais le PDF n'a pas pu être généré. Veuillez vérifier l'URL du webhook dans vos paramètres.",
-          });
-          return;
-        }
-        
-        // Autres erreurs HTTP
-        throw new Error(`Erreur HTTP: ${webhookRes.status} - ${webhookRes.statusText || "Le webhook n'est pas disponible"}`);
-      }
-
-      // Essayer de parser la réponse en JSON, sinon traiter comme texte
-      let webhookData;
-      const contentType = webhookRes.headers.get('content-type');
+      // Animation de progression pendant l'appel du workflow
+      setProgress(20);
+      setStatusMessage("Workflow Make.com en cours...");
+      
+      let webhookRes;
+      let workflowSuccess = false;
       
       try {
-        if (contentType && contentType.includes('application/json')) {
-          webhookData = await webhookRes.json();
-        } else {
-          // Si la réponse est du texte (comme "Accepted"), on considère que c'est un succès
-          const textResponse = await webhookRes.text();
-          console.log('Réponse webhook (texte):', textResponse);
+        // Appel du webhook avec timeout plus long (60 secondes pour laisser le workflow se terminer)
+        webhookRes = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(webhookPayload),
+          // Timeout de 60 secondes pour laisser le temps au workflow de se terminer
+          signal: AbortSignal.timeout(60000),
+        });
+
+        console.log('Réponse webhook Make.com - Status:', webhookRes.status, 'OK:', webhookRes.ok);
+        console.log('Headers réponse:', Object.fromEntries(webhookRes.headers.entries()));
+        
+        // Lire le corps de la réponse
+        let responseBody = '';
+        try {
+          responseBody = await webhookRes.clone().text();
+          console.log('Corps de la réponse webhook:', responseBody);
+        } catch (e) {
+          console.warn('Impossible de lire le corps de la réponse');
+        }
+
+        // Vérifier si le workflow s'est terminé avec succès
+        // Les codes 200, 201, 202, 204 sont considérés comme succès
+        const successCodes = [200, 201, 202, 204];
+        workflowSuccess = webhookRes.ok || successCodes.includes(webhookRes.status);
+
+        // Parser la réponse du webhook pour vérifier le statut
+        let webhookResponse: any = null;
+        try {
+          if (responseBody) {
+            webhookResponse = JSON.parse(responseBody);
+          }
+        } catch (e) {
+          // Si ce n'est pas du JSON, ce n'est pas grave
+          console.log('Réponse webhook non-JSON:', responseBody);
+        }
+
+        // Vérifier si la réponse indique un succès (même avec une erreur de contrainte unique)
+        if (webhookResponse?.success === false || webhookResponse?.error) {
+          // Si le webhook retourne explicitement une erreur, on la gère
+          const errorMsg = webhookResponse.error || webhookResponse.message || "Erreur inconnue";
           
-          // Si le webhook répond "Accepted" ou un message similaire, on considère que c'est accepté
-          if (textResponse.toLowerCase().includes('accepted') || textResponse.toLowerCase().includes('ok')) {
-            // Le webhook a accepté la requête, on démarre le polling pour vérifier si le PDF a été généré
-            setProgress(92);
-            setStatusMessage("Devis en création...");
-            
-            // Fonction de polling pour vérifier si le PDF a été généré
-            const pollForPdf = async (maxAttempts: number = 30) => {
-              let attempts = 0;
-              
-              const pollInterval = setInterval(async () => {
-                attempts++;
-                
-                // Vérifier si le PDF a été généré dans Supabase
-                const { data: updatedDevis, error: checkError } = await supabase
-                  .from('devis')
-                  .select('pdf_url, statut')
-                  .eq('id', insertedDevis.id)
-                  .single();
-                
-                if (checkError) {
-                  console.error('Erreur lors de la vérification du PDF:', checkError);
-                }
-                
-                // Afficher le progrès du polling
-                const pollingProgress = 92 + Math.min((attempts / maxAttempts) * 6, 6);
-                setProgress(Math.min(pollingProgress, 98));
-                setStatusMessage(`Devis en création... (${attempts}/${maxAttempts})`);
-                
-                if (updatedDevis?.pdf_url) {
-                  // Le PDF a été généré ! Arrêter le polling et mettre à jour
-                  clearInterval(pollInterval);
-                  
-                  setProgress(100);
-                  setStatusMessage("PDF généré avec succès ✅");
-                  
-                  // Mettre à jour le statut dans Supabase
-                  await supabase
-                    .from('devis')
-                    .update({ statut: 'généré' })
-                    .eq('id', insertedDevis.id);
-                  
-                  // Attendre un peu pour que l'utilisateur voie le message de succès
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  
-                  // Recharger tous les devis pour mettre à jour la liste
-                  const { data: allDevisData } = await supabase
-                    .from('devis')
-                    .select(`
-                      *,
-                      clients:client_id (id, nom, email, telephone),
-                      vehicules:vehicule_id (id, immatriculation, marque, modele)
-                    `)
-                    .order('date', { ascending: false });
-
-                  if (allDevisData) {
-                    const devisWithLignes = await Promise.all(
-                      allDevisData.map(async (d: any) => {
-                        const { data: lignesData } = await supabase
-                          .from('lignes_devis')
-                          .select('*')
-                          .eq('devis_id', d.id)
-                          .order('ordre');
-
-                        const clientReload = Array.isArray(d.clients) ? d.clients[0] : d.clients;
-                        const vehiculeReload = Array.isArray(d.vehicules) ? d.vehicules[0] : d.vehicules;
-
-                        return {
-                          id: d.id,
-                          numero: d.numero,
-                          date: d.date,
-                          clientId: d.client_id,
-                          clientNom: clientReload?.nom || '',
-                          vehiculeId: d.vehicule_id,
-                          vehiculeImmat: vehiculeReload?.immatriculation || '',
-                          montantHT: Number(d.montant_ht),
-                          montantTTC: Number(d.montant_ttc),
-                          tva: Number(d.tva),
-                          remise: Number(d.remise),
-                          remiseType: d.remise_type,
-                          statut: d.statut,
-                          lignes: (lignesData || []).map((l: any) => ({
-                            id: l.id,
-                            type: l.type,
-                            designation: l.designation,
-                            reference: l.reference || undefined,
-                            quantite: Number(l.quantite),
-                            temps: l.temps ? Number(l.temps) : undefined,
-                            prixUnitaireHT: Number(l.prix_unitaire_ht),
-                            tauxTVA: Number(l.taux_tva),
-                            totalHT: Number(l.total_ht),
-                          })),
-                          commentaires: d.commentaires || undefined,
-                          pdf_url: d.pdf_url || undefined,
-                        };
-                      })
-                    );
-
-                    setDevis(devisWithLignes);
-                  }
-
-                  setIsGenerating(false);
-                  setProgress(0);
-                  setStatusMessage("");
-                  setIsCreateSheetOpen(false);
-                  
-                  setFormClientId("");
-                  setFormVehiculeId("");
-                  setFormLignes([]);
-                  setFormRemise(0);
-                  setFormRemiseType("pourcent");
-                  setFormCommentaires("");
-                  setFormStatut("brouillon");
-
-                  toast.success("Devis créé et PDF généré", {
-                    description: "Le devis a été créé et le PDF généré avec succès. Il est disponible dans la colonne 'Devis généré'.",
-                  });
-                } else if (attempts >= maxAttempts) {
-                  // Timeout : le PDF n'a pas été généré dans le temps imparti
-                  clearInterval(pollInterval);
-                  
-                  setProgress(95);
-                  setStatusMessage("Devis créé mais PDF non encore disponible");
-                  
-                  // Recharger quand même les devis pour afficher le devis créé
-                  const { data: newDevisData } = await supabase
-                    .from('devis')
-                    .select(`
-                      *,
-                      clients:client_id (id, nom, email, telephone),
-                      vehicules:vehicule_id (id, immatriculation, marque, modele)
-                    `)
-                    .eq('id', insertedDevis.id)
-                    .single();
-
-                  if (newDevisData) {
-                    const { data: lignesData } = await supabase
-                      .from('lignes_devis')
-                      .select('*')
-                      .eq('devis_id', insertedDevis.id)
-                      .order('ordre');
-
-                    const clientReload = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
-                    const vehiculeReload = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
-
-                    const newDevis: Devis = {
-                      id: newDevisData.id,
-                      numero: newDevisData.numero,
-                      date: newDevisData.date,
-                      clientId: newDevisData.client_id,
-                      clientNom: clientReload?.nom || '',
-                      vehiculeId: newDevisData.vehicule_id,
-                      vehiculeImmat: vehiculeReload?.immatriculation || '',
-                      montantHT: Number(newDevisData.montant_ht),
-                      montantTTC: Number(newDevisData.montant_ttc),
-                      tva: Number(newDevisData.tva),
-                      remise: Number(newDevisData.remise),
-                      remiseType: newDevisData.remise_type,
-                      statut: newDevisData.statut,
-                      lignes: (lignesData || []).map((l: any) => ({
-                        id: l.id,
-                        type: l.type,
-                        designation: l.designation,
-                        reference: l.reference || undefined,
-                        quantite: Number(l.quantite),
-                        temps: l.temps ? Number(l.temps) : undefined,
-                        prixUnitaireHT: Number(l.prix_unitaire_ht),
-                        tauxTVA: Number(l.taux_tva),
-                        totalHT: Number(l.total_ht),
-                      })),
-                      commentaires: newDevisData.commentaires || undefined,
-                      pdf_url: newDevisData.pdf_url || undefined,
-                    };
-
-                    setDevis(prev => {
-                      const filtered = prev.filter(d => d.id !== insertedDevis.id);
-                      return [newDevis, ...filtered];
-                    });
-                  }
-
-                  setIsGenerating(false);
-                  setProgress(0);
-                  setStatusMessage("");
-                  setIsCreateSheetOpen(false);
-                  
-                  setFormClientId("");
-                  setFormVehiculeId("");
-                  setFormLignes([]);
-                  setFormRemise(0);
-                  setFormRemiseType("pourcent");
-                  setFormCommentaires("");
-                  setFormStatut("brouillon");
-
-                  toast.info("Devis créé", {
-                    description: "Le devis a été créé. Le PDF sera généré automatiquement et apparaîtra dans la colonne 'Devis généré'.",
-                  });
-                }
-              }, 2000); // Vérifier toutes les 2 secondes
-            };
-            
-            // Démarrer le polling
-            pollForPdf(30); // Maximum 30 tentatives (60 secondes)
-            return;
+          // Si l'erreur est liée à une contrainte unique (devis existant), on considère ça comme un succès
+          if (
+            errorMsg.includes('duplicate key') || 
+            errorMsg.includes('unique constraint') || 
+            errorMsg.includes('devis_pkey') ||
+            webhookResponse.errorType === 'duplicate_key'
+          ) {
+            console.log('ℹ️ Le devis existe déjà, ce qui est normal pour un upsert. C\'est considéré comme un succès.');
+            workflowSuccess = true;
           } else {
-            // Réponse texte inattendue
-            throw new Error(`Réponse inattendue du webhook: ${textResponse}`);
+            // Autre type d'erreur
+            throw new Error(errorMsg);
           }
         }
-      } catch (parseError) {
-        // Si le parsing échoue, on relance l'erreur
-        console.error('Erreur parsing réponse webhook:', parseError);
-        throw new Error(`Impossible de parser la réponse du webhook: ${parseError}`);
-      }
 
-      // 5. Si succès avec JSON, mettre à jour le devis
-      if (webhookData && webhookData.status === 'success' && webhookData.devisPdfUrl) {
-        setProgress(100);
-        setStatusMessage("Devis créé ✅");
+        if (!workflowSuccess) {
+          // Lire le message d'erreur si disponible
+          let errorMessage = `Le workflow Make.com a rencontré une erreur (${webhookRes.status}).`;
+          try {
+            if (webhookResponse?.error || webhookResponse?.message) {
+              errorMessage = webhookResponse.error || webhookResponse.message;
+            }
+          } catch (e) {
+            // Ignorer les erreurs de parsing
+          }
 
-        await supabase
-          .from('devis')
-          .update({
-            statut: 'généré',
-            pdf_url: webhookData.devisPdfUrl,
-          })
-          .eq('id', insertedDevis.id);
-
-        // Attendre un peu pour afficher le message
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        // Recharger les devis
-        const { data: newDevisData } = await supabase
-          .from('devis')
-          .select(`
-            *,
-            clients:client_id (id, nom, email, telephone),
-            vehicules:vehicule_id (id, immatriculation, marque, modele)
-          `)
-          .eq('id', insertedDevis.id)
-          .single();
-
-        if (newDevisData) {
-          const { data: lignesData } = await supabase
-            .from('lignes_devis')
-            .select('*')
-            .eq('devis_id', insertedDevis.id)
-            .order('ordre');
-
-          const clientReload = Array.isArray(newDevisData.clients) ? newDevisData.clients[0] : newDevisData.clients;
-          const vehiculeReload = Array.isArray(newDevisData.vehicules) ? newDevisData.vehicules[0] : newDevisData.vehicules;
-
-          const newDevis: Devis = {
-            id: newDevisData.id,
-            numero: newDevisData.numero,
-            date: newDevisData.date,
-            clientId: newDevisData.client_id,
-            clientNom: clientReload?.nom || '',
-            vehiculeId: newDevisData.vehicule_id,
-            vehiculeImmat: vehiculeReload?.immatriculation || '',
-            montantHT: Number(newDevisData.montant_ht),
-            montantTTC: Number(newDevisData.montant_ttc),
-            tva: Number(newDevisData.tva),
-            remise: Number(newDevisData.remise),
-            remiseType: newDevisData.remise_type,
-            statut: newDevisData.statut,
-            lignes: (lignesData || []).map((l: any) => ({
-              id: l.id,
-              type: l.type,
-              designation: l.designation,
-              reference: l.reference || undefined,
-              quantite: Number(l.quantite),
-              temps: l.temps ? Number(l.temps) : undefined,
-              prixUnitaireHT: Number(l.prix_unitaire_ht),
-              tauxTVA: Number(l.taux_tva),
-              totalHT: Number(l.total_ht),
-            })),
-            commentaires: newDevisData.commentaires || undefined,
-            pdf_url: newDevisData.pdf_url || undefined,
-          };
-
-          setDevis(prev => [newDevis, ...prev]);
+          throw new Error(errorMessage);
         }
 
+        console.log('✅ Workflow Make.com terminé avec succès !');
+        console.log('Réponse webhook:', webhookResponse);
+        setProgress(50);
+        setStatusMessage("Workflow terminé, vérification du devis...");
+
+      } catch (fetchError: any) {
+        // Gestion des erreurs du webhook
+        console.error('❌ Erreur lors de l\'appel au workflow Make.com:', fetchError);
+        
         setIsGenerating(false);
         setProgress(0);
         setStatusMessage("");
-        setIsCreateSheetOpen(false);
-        
-        // Réinitialiser le formulaire
-        setFormClientId("");
-        setFormVehiculeId("");
-        setFormLignes([]);
-        setFormRemise(0);
-        setFormRemiseType("pourcent");
-        setFormCommentaires("");
-        setFormStatut("brouillon");
 
-        toast.success("Devis créé", {
-          description: "Le devis a été créé et le PDF généré avec succès.",
+        // Ne PAS créer le devis si le workflow a échoué
+        if (fetchError.name === 'AbortError' || fetchError.name === 'TimeoutError') {
+          throw new Error("Le workflow Make.com a pris trop de temps (timeout après 60 secondes). Le workflow n'a pas pu se terminer. Le devis n'a pas été créé. Veuillez réessayer.");
+        } else {
+          throw new Error(`Le workflow Make.com a échoué : ${fetchError.message || fetchError}. Le devis n'a pas été créé.`);
+        }
+      }
+
+      // ÉTAPE 2 : Le workflow Make.com a créé/mis à jour le devis dans Supabase
+      // On vérifie que le devis existe maintenant dans Supabase
+      if (!workflowSuccess) {
+        throw new Error("Le workflow Make.com n'a pas réussi. Le devis n'a pas été créé.");
+      }
+
+      setProgress(60);
+      setStatusMessage("Vérification du devis créé...");
+
+      // Attendre un peu que Make.com ait terminé l'upsert dans Supabase
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Vérifier que le devis existe dans Supabase (créé par Make.com)
+      let devisCreated = false;
+      let attempts = 0;
+      const maxAttempts = 10;
+
+      while (!devisCreated && attempts < maxAttempts) {
+        attempts++;
+        setProgress(60 + Math.floor((attempts / maxAttempts) * 25));
+        setStatusMessage(`Vérification du devis... (${attempts}/${maxAttempts})`);
+
+        const { data: existingDevis, error: checkError } = await supabase
+          .from('devis')
+          .select('id, statut, pdf_url')
+          .eq('id', devisId)
+          .single();
+
+        if (!checkError && existingDevis) {
+          devisCreated = true;
+          console.log('✅ Devis trouvé dans Supabase:', existingDevis);
+          
+          // Vérifier le statut du devis
+          if (existingDevis.statut === 'généré' || existingDevis.pdf_url) {
+            console.log('✅ Devis généré avec PDF disponible');
+          }
+        } else {
+          // Attendre un peu avant de réessayer
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      if (!devisCreated) {
+        // Le devis n'a pas été trouvé après plusieurs tentatives
+        // Cela peut arriver si Make.com n'a pas encore terminé, mais on considère quand même que c'est un succès
+        // car le workflow Make.com a répondu avec succès
+        console.warn('⚠️ Le devis n\'a pas encore été trouvé dans Supabase, mais le workflow a réussi.');
+        console.warn('Le devis sera probablement visible après un rafraîchissement.');
+      }
+
+      setProgress(90);
+      setStatusMessage("Finalisation...");
+
+      // Recharger les devis pour afficher le nouveau devis
+      const devisWithLignes = await loadDevisFromSupabase(
+        viewMode === "liste" ? (currentPage - 1) * itemsPerPage : undefined,
+        viewMode === "liste" ? itemsPerPage : undefined
+      );
+      setDevis(devisWithLignes);
+
+      setProgress(100);
+      setStatusMessage("Devis généré avec succès ✅");
+
+      // Attendre un peu pour que l'utilisateur voie le message de succès
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      setIsGenerating(false);
+      setProgress(0);
+      setStatusMessage("");
+      setIsCreateSheetOpen(false);
+      setFormClientId("");
+      setFormVehiculeId("");
+      setFormLignes([]);
+      setFormRemise(0);
+      setFormRemiseType("pourcent");
+      setFormCommentaires("");
+      setFormStatut("brouillon");
+
+      // Message de succès adapté
+      if (devisCreated) {
+        toast.success("Devis généré avec succès", {
+          description: "Le devis a été créé et généré avec succès par le workflow Make.com.",
+          duration: 5000,
         });
       } else {
-        throw new Error(webhookData.message || "Erreur côté webhook ou PDF manquant.");
+        toast.success("Workflow terminé", {
+          description: "Le workflow Make.com s'est terminé avec succès. Le devis devrait apparaître dans quelques instants.",
+          duration: 5000,
+        });
       }
 
     } catch (error: any) {
@@ -1897,6 +1698,83 @@ const Devis = () => {
                   <div className="text-center py-12">
                     <FileText className="h-12 w-12 mx-auto mb-3 text-gray-400" />
                     <p className="text-gray-700/60">Aucun devis trouvé</p>
+                  </div>
+                )}
+                
+                {/* Pagination - Afficher seulement s'il y a plus d'une page ou si totalDevis est défini */}
+                {totalDevis > 0 && Math.ceil(totalDevis / itemsPerPage) > 1 && (
+                  <div className="p-4 border-t border-blue-200/50">
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (currentPage > 1) {
+                                setCurrentPage(currentPage - 1);
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }
+                            }}
+                            className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                          />
+                        </PaginationItem>
+                        
+                        {Array.from({ length: Math.max(1, Math.ceil(totalDevis / itemsPerPage)) }, (_, i) => i + 1).map((page) => {
+                          // Afficher la première page, la dernière page, la page actuelle, et les pages adjacentes
+                          const totalPages = Math.ceil(totalDevis / itemsPerPage);
+                          const showPage = 
+                            page === 1 ||
+                            page === totalPages ||
+                            (page >= currentPage - 1 && page <= currentPage + 1);
+                          
+                          if (!showPage) {
+                            // Afficher des ellipses
+                            if (page === currentPage - 2 || page === currentPage + 2) {
+                              return (
+                                <PaginationItem key={page}>
+                                  <PaginationEllipsis />
+                                </PaginationItem>
+                              );
+                            }
+                            return null;
+                          }
+                          
+                          return (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setCurrentPage(page);
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                isActive={currentPage === page}
+                                className="cursor-pointer"
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          );
+                        })}
+                        
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const totalPages = Math.ceil(totalDevis / itemsPerPage);
+                              if (currentPage < totalPages) {
+                                setCurrentPage(currentPage + 1);
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }
+                            }}
+                            className={currentPage >= Math.ceil(totalDevis / itemsPerPage) ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                    
+                    <div className="text-center mt-2 text-sm text-gray-600">
+                      Page {currentPage} sur {Math.ceil(totalDevis / itemsPerPage)} ({totalDevis} devis au total{searchQuery && ` • ${filteredDevis.length} résultat(s) de recherche`})
+                    </div>
                   </div>
                 )}
               </CardContent>
