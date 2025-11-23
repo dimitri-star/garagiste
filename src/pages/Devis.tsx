@@ -710,7 +710,7 @@ L'équipe LS MECA`;
       return;
     }
 
-    const MAKE_SEND_URL = "https://hook.eu2.make.com/ytxwodg9b8xfq5etaspn5kt8bk5tm5p9";
+    const MAKE_SEND_URL = import.meta.env.VITE_MAKE_SEND_URL || "https://hook.eu2.make.com/ytxwodg9b8xfq5etaspn5kt8bk5tm5p9";
 
     try {
       // Envoyer l'email via Make.com
