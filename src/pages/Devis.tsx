@@ -314,6 +314,13 @@ const Devis = () => {
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [hoveredDevisId, setHoveredDevisId] = useState<string | null>(null);
   
+  // États pour la modal d'envoi d'email
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [emailDevis, setEmailDevis] = useState<Devis | null>(null);
+  const [emailClient, setEmailClient] = useState<{ nom: string; email: string } | null>(null);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  
   // États pour les données depuis Supabase
   const [clients, setClients] = useState<Client[]>([]);
   const [vehicules, setVehicules] = useState<Vehicule[]>([]);
@@ -394,13 +401,13 @@ const Devis = () => {
   const loadDevisFromSupabase = async (offset?: number, limit?: number) => {
     // Construire la requête de base
     let query = supabase
-      .from('devis')
-      .select(`
-        *,
-        clients:client_id (id, nom, email, telephone),
-        vehicules:vehicule_id (id, immatriculation, marque, modele)
+        .from('devis')
+        .select(`
+          *,
+          clients:client_id (id, nom, email, telephone),
+          vehicules:vehicule_id (id, immatriculation, marque, modele)
       `, { count: 'exact' })
-      .order('date', { ascending: false });
+        .order('date', { ascending: false });
 
     // Appliquer les filtres côté serveur (uniquement en vue liste)
     if (viewMode === "liste") {
@@ -426,8 +433,8 @@ const Devis = () => {
 
     const { data: devisData, error: devisError, count } = await query;
 
-    if (devisError) {
-      console.error('Erreur chargement devis:', devisError);
+      if (devisError) {
+        console.error('Erreur chargement devis:', devisError);
       throw new Error(`Impossible de charger les devis: ${devisError.message}`);
     }
 
@@ -437,50 +444,50 @@ const Devis = () => {
     } else if (viewMode === "kanban") {
       // En vue Kanban, charger tout sans pagination
       setTotalDevis(devisData?.length || 0);
-    }
+      }
 
-    // Charger les lignes pour chaque devis
-    const devisWithLignes = await Promise.all(
-      (devisData || []).map(async (d: any) => {
-        const { data: lignesData } = await supabase
-          .from('lignes_devis')
-          .select('*')
-          .eq('devis_id', d.id)
-          .order('ordre');
+      // Charger les lignes pour chaque devis
+      const devisWithLignes = await Promise.all(
+        (devisData || []).map(async (d: any) => {
+          const { data: lignesData } = await supabase
+            .from('lignes_devis')
+            .select('*')
+            .eq('devis_id', d.id)
+            .order('ordre');
 
-        const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
-        const vehicule = Array.isArray(d.vehicules) ? d.vehicules[0] : d.vehicules;
+          const client = Array.isArray(d.clients) ? d.clients[0] : d.clients;
+          const vehicule = Array.isArray(d.vehicules) ? d.vehicules[0] : d.vehicules;
 
-        return {
-          id: d.id,
-          numero: d.numero,
-          date: d.date,
-          clientId: d.client_id,
-          clientNom: client?.nom || '',
-          vehiculeId: d.vehicule_id,
-          vehiculeImmat: vehicule?.immatriculation || '',
-          montantHT: Number(d.montant_ht),
-          montantTTC: Number(d.montant_ttc),
-          tva: Number(d.tva),
-          remise: Number(d.remise),
-          remiseType: d.remise_type,
-          statut: d.statut,
-          lignes: (lignesData || []).map((l: any) => ({
-            id: l.id,
-            type: l.type,
-            designation: l.designation,
-            reference: l.reference || undefined,
-            quantite: Number(l.quantite),
-            temps: l.temps ? Number(l.temps) : undefined,
-            prixUnitaireHT: Number(l.prix_unitaire_ht),
-            tauxTVA: Number(l.taux_tva),
-            totalHT: Number(l.total_ht),
-          })),
-          commentaires: d.commentaires || undefined,
-          pdf_url: d.pdf_url || undefined,
-        };
-      })
-    );
+          return {
+            id: d.id,
+            numero: d.numero,
+            date: d.date,
+            clientId: d.client_id,
+            clientNom: client?.nom || '',
+            vehiculeId: d.vehicule_id,
+            vehiculeImmat: vehicule?.immatriculation || '',
+            montantHT: Number(d.montant_ht),
+            montantTTC: Number(d.montant_ttc),
+            tva: Number(d.tva),
+            remise: Number(d.remise),
+            remiseType: d.remise_type,
+            statut: d.statut,
+            lignes: (lignesData || []).map((l: any) => ({
+              id: l.id,
+              type: l.type,
+              designation: l.designation,
+              reference: l.reference || undefined,
+              quantite: Number(l.quantite),
+              temps: l.temps ? Number(l.temps) : undefined,
+              prixUnitaireHT: Number(l.prix_unitaire_ht),
+              tauxTVA: Number(l.taux_tva),
+              totalHT: Number(l.total_ht),
+            })),
+            commentaires: d.commentaires || undefined,
+            pdf_url: d.pdf_url || undefined,
+          };
+        })
+      );
 
     return devisWithLignes;
   };
@@ -494,7 +501,7 @@ const Devis = () => {
           // En vue liste, charger avec pagination
           const offset = (currentPage - 1) * itemsPerPage;
           const devisWithLignes = await loadDevisFromSupabase(offset, itemsPerPage);
-          setDevis(devisWithLignes);
+      setDevis(devisWithLignes);
         } else {
           // En vue Kanban, charger tout sans pagination
           const devisWithLignes = await loadDevisFromSupabase();
@@ -503,7 +510,7 @@ const Devis = () => {
       } catch (error: any) {
         toast.error('Erreur', { description: error.message || 'Impossible de charger les devis' });
       } finally {
-        setLoading(false);
+      setLoading(false);
       }
     };
     loadDevis();
@@ -626,48 +633,98 @@ const Devis = () => {
     }
   };
 
-  // Fonction pour envoyer le devis par email
-  const sendDevisByEmail = async (devisId: string) => {
-    const MAKE_SEND_URL = import.meta.env.VITE_MAKE_SEND_URL || "";
-    
-    if (!MAKE_SEND_URL) {
-      return; // Ne rien faire si l'URL n'est pas configurée
-    }
-
+  // Fonction pour ouvrir la modal de prévisualisation d'email
+  const openEmailDialog = async (devisId: string) => {
     try {
-      // Charger le devis avec client
-      const { data: devisData, error: devisError } = await supabase
-        .from('devis')
-        .select(`
-          *,
-          clients:client_id (id, nom, email, telephone)
-        `)
-        .eq('id', devisId)
+      // Trouver le devis dans la liste actuelle
+      const devisToSend = devis.find(d => d.id === devisId);
+      
+      if (!devisToSend) {
+        toast.error("Erreur", {
+          description: "Devis introuvable",
+        });
+        return;
+      }
+
+      if (!devisToSend.pdf_url) {
+        toast.error("Erreur", {
+          description: "Le PDF du devis n'est pas encore disponible",
+        });
+        return;
+      }
+
+      // Charger les informations complètes du client
+      const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('nom, email')
+        .eq('id', devisToSend.clientId)
         .single();
 
-      if (devisError || !devisData) {
-        throw new Error('Devis introuvable');
+      if (clientError || !clientData) {
+        toast.error("Erreur", {
+          description: "Impossible de charger les informations du client",
+        });
+        return;
       }
 
-      const client = Array.isArray(devisData.clients) ? devisData.clients[0] : devisData.clients;
-
-      if (!devisData.pdf_url) {
-        throw new Error('PDF non disponible');
+      if (!clientData.email) {
+        toast.error("Erreur", {
+          description: "L'email du client n'est pas renseigné",
+        });
+        return;
       }
 
-      if (!client?.email) {
-        throw new Error('Email du client manquant');
-      }
+      // Préparer le sujet et le corps de l'email
+      const subject = `Devis ${devisToSend.numero} - ${clientData.nom}`;
+      const body = `Bonjour ${clientData.nom},
 
+Nous vous adressons le devis ${devisToSend.numero} pour votre véhicule ${devisToSend.vehiculeImmat}.
+
+Détails du devis :
+- Numéro : ${devisToSend.numero}
+- Date : ${new Date(devisToSend.date).toLocaleDateString('fr-FR')}
+- Montant TTC : ${devisToSend.montantTTC.toLocaleString('fr-FR')} €
+
+Le devis est joint à cet email en pièce jointe.
+
+Cordialement,
+L'équipe LS MECA`;
+
+      // Ouvrir la modal avec les données pré-remplies
+      setEmailDevis(devisToSend);
+      setEmailClient({ nom: clientData.nom, email: clientData.email });
+      setEmailSubject(subject);
+      setEmailBody(body);
+      setIsEmailDialogOpen(true);
+    } catch (error: any) {
+      console.error('Erreur lors de l\'ouverture de la modal:', error);
+      toast.error("Erreur", {
+        description: error.message || "Une erreur est survenue",
+      });
+    }
+  };
+
+  // Fonction pour envoyer réellement l'email
+  const handleSendEmail = async () => {
+    if (!emailDevis || !emailClient) {
+      return;
+    }
+
+    const MAKE_SEND_URL = "https://hook.eu2.make.com/ytxwodg9b8xfq5etaspn5kt8bk5tm5p9";
+
+    try {
+      // Envoyer l'email via Make.com
       const response = await fetch(MAKE_SEND_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          devis_id: devisId,
-          email: client.email,
-          pdf_url: devisData.pdf_url,
+          devis_id: emailDevis.id,
+          email: emailClient.email,
+          pdf_url: emailDevis.pdf_url,
+          subject: emailSubject,
+          body: emailBody,
         }),
       });
 
@@ -675,20 +732,28 @@ const Devis = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Mettre à jour le statut
+      // Mettre à jour le statut du devis
       await supabase
         .from('devis')
         .update({ statut: 'envoyé' })
-        .eq('id', devisId);
+        .eq('id', emailDevis.id);
 
+      // Mettre à jour l'état local
       setDevis(prev => prev.map(d => 
-        d.id === devisId 
+        d.id === emailDevis.id 
           ? { ...d, statut: 'envoyé' as const }
           : d
       ));
 
+      // Fermer la modal
+      setIsEmailDialogOpen(false);
+      setEmailDevis(null);
+      setEmailClient(null);
+      setEmailSubject("");
+      setEmailBody("");
+
       toast.success("Devis envoyé", {
-        description: `Le devis a été envoyé à ${client.email}`,
+        description: `Le devis a été envoyé à ${emailClient.email}`,
       });
     } catch (error: any) {
       console.error('Erreur lors de l\'envoi:', error);
@@ -698,20 +763,25 @@ const Devis = () => {
     }
   };
 
+  // Fonction pour envoyer le devis par email (ouvre la modal)
+  const sendDevisByEmail = (devisId: string) => {
+    openEmailDialog(devisId);
+  };
+
   const getFilteredDevis = () => {
     let filtered = devis;
 
     // En vue liste, les filtres statut et client sont déjà appliqués côté serveur
     // On ne les applique que pour la vue Kanban
     if (viewMode === "kanban") {
-      // Filtre par statut
-      if (statutFilter !== "all") {
-        filtered = filtered.filter((d) => d.statut === statutFilter);
-      }
+    // Filtre par statut
+    if (statutFilter !== "all") {
+      filtered = filtered.filter((d) => d.statut === statutFilter);
+    }
 
-      // Filtre par client
-      if (clientFilter !== "all") {
-        filtered = filtered.filter((d) => d.clientId === clientFilter);
+    // Filtre par client
+    if (clientFilter !== "all") {
+      filtered = filtered.filter((d) => d.clientId === clientFilter);
       }
     }
 
@@ -1054,7 +1124,7 @@ const Devis = () => {
           try {
             const offset = (currentPage - 1) * itemsPerPage;
             const devisWithLignes = await loadDevisFromSupabase(offset, itemsPerPage);
-            setDevis(devisWithLignes);
+          setDevis(devisWithLignes);
           } catch (reloadError: any) {
             console.error('Erreur lors du rechargement après suppression:', reloadError);
             setCurrentPage(currentPage); // Force le rechargement via useEffect
@@ -1245,12 +1315,12 @@ const Devis = () => {
       try {
         // Appel du webhook avec timeout plus long (60 secondes pour laisser le workflow se terminer)
         webhookRes = await fetch(WEBHOOK_URL, {
-          method: 'POST',
+        method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
-          body: JSON.stringify(webhookPayload),
+        body: JSON.stringify(webhookPayload),
           // Timeout de 60 secondes pour laisser le temps au workflow de se terminer
           signal: AbortSignal.timeout(60000),
         });
@@ -1348,8 +1418,8 @@ const Devis = () => {
       setStatusMessage("Vérification du devis créé...");
 
       // Attendre un peu que Make.com ait terminé l'upsert dans Supabase
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  
       // Vérifier que le devis existe dans Supabase (créé par Make.com)
       let devisCreated = false;
       let attempts = 0;
@@ -1361,10 +1431,10 @@ const Devis = () => {
         setStatusMessage(`Vérification du devis... (${attempts}/${maxAttempts})`);
 
         const { data: existingDevis, error: checkError } = await supabase
-          .from('devis')
+                    .from('devis')
           .select('id, statut, pdf_url')
           .eq('id', devisId)
-          .single();
+                    .single();
 
         if (!checkError && existingDevis) {
           devisCreated = true;
@@ -1374,7 +1444,7 @@ const Devis = () => {
           if (existingDevis.statut === 'généré' || existingDevis.pdf_url) {
             console.log('✅ Devis généré avec PDF disponible');
           }
-        } else {
+          } else {
           // Attendre un peu avant de réessayer
           await new Promise(resolve => setTimeout(resolve, 500));
         }
@@ -1404,17 +1474,17 @@ const Devis = () => {
       // Attendre un peu pour que l'utilisateur voie le message de succès
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      setIsGenerating(false);
-      setProgress(0);
-      setStatusMessage("");
-      setIsCreateSheetOpen(false);
-      setFormClientId("");
-      setFormVehiculeId("");
-      setFormLignes([]);
-      setFormRemise(0);
-      setFormRemiseType("pourcent");
-      setFormCommentaires("");
-      setFormStatut("brouillon");
+        setIsGenerating(false);
+        setProgress(0);
+        setStatusMessage("");
+        setIsCreateSheetOpen(false);
+        setFormClientId("");
+        setFormVehiculeId("");
+        setFormLignes([]);
+        setFormRemise(0);
+        setFormRemiseType("pourcent");
+        setFormCommentaires("");
+        setFormStatut("brouillon");
 
       // Message de succès adapté
       if (devisCreated) {
@@ -1657,7 +1727,7 @@ const Devis = () => {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  onClick={() => sendDevisByEmail(devis.id)}
+                                  onClick={() => openEmailDialog(devis.id)}
                                   className="h-9 w-9 p-0 hover:bg-blue-50"
                                   title="Envoyer par email"
                                 >
@@ -2312,6 +2382,110 @@ const Devis = () => {
             </DialogHeader>
             <div className="p-4 bg-gray-100 rounded-lg min-h-[400px] flex items-center justify-center">
               <p className="text-gray-600">Aperçu PDF du devis</p>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de prévisualisation et envoi d'email */}
+        <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold text-gray-900">
+                Envoyer le devis par email
+              </DialogTitle>
+              <DialogDescription className="text-gray-600">
+                Vérifiez et modifiez le contenu de l'email avant l'envoi
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-4">
+              {/* Informations du devis */}
+              {emailDevis && (
+                <div className="bg-blue-50/50 border border-blue-200/50 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-900 mb-2">Informations du devis</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm text-gray-700">
+                    <div>
+                      <span className="font-medium">Numéro :</span> {emailDevis.numero}
+                    </div>
+                    <div>
+                      <span className="font-medium">Date :</span> {new Date(emailDevis.date).toLocaleDateString('fr-FR')}
+                    </div>
+                    <div>
+                      <span className="font-medium">Client :</span> {emailClient?.nom}
+                    </div>
+                    <div>
+                      <span className="font-medium">Véhicule :</span> {emailDevis.vehiculeImmat}
+                    </div>
+                    <div className="col-span-2">
+                      <span className="font-medium">Montant TTC :</span> {emailDevis.montantTTC.toLocaleString('fr-FR')} €
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Destinataire */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Destinataire
+                </label>
+                <Input
+                  value={emailClient?.email || ""}
+                  disabled
+                  className="bg-gray-50 border-blue-300/50 text-gray-700"
+                />
+              </div>
+
+              {/* Sujet */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Sujet
+                </label>
+                <Input
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="bg-white border-blue-300/50 text-gray-900"
+                  placeholder="Sujet de l'email"
+                />
+              </div>
+
+              {/* Corps de l'email */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  Message
+                </label>
+                <Textarea
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  rows={12}
+                  className="bg-white border-blue-300/50 text-gray-900 font-mono text-sm"
+                  placeholder="Corps de l'email"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-blue-200/50">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEmailDialogOpen(false);
+                    setEmailDevis(null);
+                    setEmailClient(null);
+                    setEmailSubject("");
+                    setEmailBody("");
+                  }}
+                  className="border-blue-500/30 bg-white text-gray-700 hover:bg-blue-50"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={handleSendEmail}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={!emailSubject.trim() || !emailBody.trim() || !emailClient?.email}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  Envoyer l'email
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
