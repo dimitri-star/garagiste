@@ -69,7 +69,7 @@ function ElegantShape({
 
 const Login: FC = () => {
   const navigate = useNavigate();
-  const { signUp, signIn, user } = useAuth();
+  const { signUp, signIn, user, signInAsGuest } = useAuth();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -388,6 +388,32 @@ const Login: FC = () => {
               </button>
             </div>
           )}
+
+          {/* Bouton d'accès direct */}
+          <div className="mt-6 pt-6 border-t border-blue-200/50">
+            <button
+              type="button"
+              onClick={() => {
+                signInAsGuest();
+                toast.success("Accès direct activé", {
+                  description: "Vous accédez à l'application en mode démo.",
+                });
+                navigate("/dashboard", { replace: true });
+              }}
+              disabled={loading}
+              className="w-full rounded-full border-2 border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-medium text-blue-700 transition hover:border-blue-400 hover:bg-blue-100/70 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="flex items-center justify-center gap-2">
+                Accéder directement à l&apos;application
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </span>
+            </button>
+            <p className="mt-2 text-center text-[10px] text-gray-500">
+              Mode démo - Accès sans authentification
+            </p>
+          </div>
         </div>
       </div>
     </div>

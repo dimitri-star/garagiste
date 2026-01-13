@@ -6,7 +6,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, session, loading } = useAuth();
+  const { user, session, loading, isDemo } = useAuth();
   const location = useLocation();
 
   // Afficher un loader pendant la vérification de l'authentification
@@ -23,12 +23,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   // Vérifier à la fois user et session pour une sécurité renforcée
   // Si pas de user OU pas de session, rediriger vers login
-  if (!user || !session) {
+  // Exception : permettre l'accès en mode demo
+  if (!isDemo && (!user || !session)) {
     // Sauvegarder l'URL actuelle pour rediriger après connexion si souhaité
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
-  // Utilisateur authentifié, afficher le contenu protégé
+  // Utilisateur authentifié ou mode demo, afficher le contenu protégé
   return <>{children}</>;
 }
 

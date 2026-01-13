@@ -6,9 +6,11 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isDemo: boolean;
   signUp: (email: string, password: string, firstName?: string) => Promise<{ error: AuthError | null; session: Session | null }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
+  signInAsGuest: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,6 +19,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     // Récupérer la session initiale
@@ -86,16 +89,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    setIsDemo(false);
     await supabase.auth.signOut();
+  };
+
+  const signInAsGuest = () => {
+    setIsDemo(true);
+    // Créer un objet user factice pour le mode demo
+    const demoUser = {
+      id: 'demo-user-id',
+      email: 'demo@garagiste.app',
+      created_at: new Date().toISOString(),
+    } as User;
+    setUser(demoUser);
+    // Créer une session factice pour le mode demo
+    const demoSession = {
+      access_token: 'demo-token',
+      token_type: 'bearer',
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      refresh_token: 'demo-refresh-token',
+      user: demoUser,
+    } as Session;
+    setSession(demoSession);
   };
 
   const value = {
     user,
     session,
     loading,
+    isDemo,
     signUp,
     signIn,
     signOut,
+    signInAsGuest,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
